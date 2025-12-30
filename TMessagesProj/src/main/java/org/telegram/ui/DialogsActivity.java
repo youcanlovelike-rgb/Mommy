@@ -4538,6 +4538,46 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 }
 
                 @Override
+                public boolean onAccessibilityAction(DialogCell cell, int action, Bundle arguments) {
+                    var dialogId = cell.getDialogId();
+                    var dialog = getMessagesController().dialogs_dict.get(dialogId);
+                    if (dialog == null) {
+                        return false;
+                    }
+                    ArrayList<Long> dialogs = new ArrayList<>();
+                    dialogs.add(dialogId);
+                    if (action == R.id.acc_action_pin || action == R.id.acc_action_unpin) {
+                        boolean pinned = isDialogPinned(dialog);
+                        canPinCount = pinned ? 0 : 1;
+                        performSelectedDialogsAction(dialogs, pin, true, false);
+                        return true;
+                    } else if (action == R.id.acc_action_read || action == R.id.acc_action_unread) {
+                        canReadCount = dialog.unread_count > 0 || dialog.unread_mark ? 1 : 0;
+                        performSelectedDialogsAction(dialogs, read, true, false);
+                        return true;
+                    } else if (action == R.id.acc_action_mute || action == R.id.acc_action_unmute) {
+                        canMuteCount = getMessagesController().isDialogMuted(dialogId, 0) ? 0 : 1;
+                        canUnmuteCount = canMuteCount > 0 ? 0 : 1;
+                        performSelectedDialogsAction(dialogs, mute, true, false);
+                        return true;
+                    } else if (action == R.id.acc_action_archive || action == R.id.acc_action_unarchive) {
+                        canUnarchiveCount = folderId == 1 || dialog.folder_id == 1 ? 1 : 0;
+                        performSelectedDialogsAction(dialogs, archive, true, false);
+                        return true;
+                    } else if (action == R.id.acc_action_delete) {
+                        performSelectedDialogsAction(dialogs, DialogsActivity.delete, true, false);
+                        return true;
+                    } else if (action == R.id.acc_action_clear_history) {
+                        performSelectedDialogsAction(dialogs, DialogsActivity.clear, true, false);
+                        return true;
+                    } else if (action == R.id.acc_action_block) {
+                        performSelectedDialogsAction(dialogs, block, true, false);
+                        return true;
+                    }
+                    return super.onAccessibilityAction(cell, action, arguments);
+                }
+
+                @Override
                 protected boolean showOpenBotButton() {
                     return initialDialogsType == DIALOGS_TYPE_DEFAULT;
                 }

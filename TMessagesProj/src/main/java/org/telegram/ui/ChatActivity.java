@@ -40873,7 +40873,61 @@ public class ChatActivity extends BaseFragment implements
         }
 
         @Override
-        public boolean onAccessibilityAction(int action, Bundle arguments) {
+        public void onInitializeAccessibilityNodeInfo(ChatMessageCell cell, AccessibilityNodeInfo info) {
+            var message = cell.getMessageObject();
+            var groupedMessages = cell.getCurrentMessagesGroup();
+            var primaryMessageObject = cell.getPrimaryMessageObject();
+
+            ArrayList<Integer> options = new ArrayList<>();
+            selectedObject = message;
+            selectedObjectGroup = groupedMessages;
+            fillMessageMenu(primaryMessageObject, new ArrayList<>(), new ArrayList<>(), options);
+
+            if (options.contains(OPTION_REPLY)) {
+                info.addAction(new AccessibilityNodeInfo.AccessibilityAction(R.id.acc_action_reply, LocaleController.getString(R.string.Reply)));
+            }
+            if (options.contains(OPTION_COPY)) {
+                info.addAction(new AccessibilityNodeInfo.AccessibilityAction(R.id.acc_action_copy, LocaleController.getString(R.string.Copy)));
+            }
+            if (options.contains(OPTION_FORWARD)) {
+                info.addAction(new AccessibilityNodeInfo.AccessibilityAction(R.id.acc_action_forward, LocaleController.getString(R.string.Forward)));
+            }
+            if (options.contains(OPTION_DELETE)) {
+                info.addAction(new AccessibilityNodeInfo.AccessibilityAction(R.id.acc_action_delete, LocaleController.getString(R.string.Delete)));
+            }
+            if (options.contains(OPTION_PIN)) {
+                info.addAction(new AccessibilityNodeInfo.AccessibilityAction(R.id.acc_action_pin, LocaleController.getString(R.string.PinMessage)));
+            }
+            if (options.contains(OPTION_SAVE_TO_GALLERY)) {
+                info.addAction(new AccessibilityNodeInfo.AccessibilityAction(R.id.acc_action_save_to_gallery, LocaleController.getString(R.string.SaveToGallery)));
+            }
+        }
+
+        @Override
+        public boolean onAccessibilityAction(ChatMessageCell cell, int action, Bundle arguments) {
+            var option = -1;
+            if (action == R.id.acc_action_reply) {
+                option = OPTION_REPLY;
+            } else if (action == R.id.acc_action_copy) {
+                option = OPTION_COPY;
+            } else if (action == R.id.acc_action_forward) {
+                option = OPTION_FORWARD;
+            } else if (action == R.id.acc_action_delete) {
+                option = OPTION_DELETE;
+            } else if (action == R.id.acc_action_pin) {
+                option = OPTION_PIN;
+            } else if (action == R.id.acc_action_save_to_gallery) {
+                option = OPTION_SAVE_TO_GALLERY;
+            }
+            if (option != -1) {
+                var message = cell.getMessageObject();
+                var groupedMessages = cell.getCurrentMessagesGroup();
+                selectedObject = message;
+                selectedObjectGroup = groupedMessages;
+                processSelectedOption(option);
+                return true;
+            }
+
             if (action == AccessibilityNodeInfo.ACTION_CLICK || action == R.id.acc_action_small_button || action == R.id.acc_action_msg_options) {
                 if (inPreviewMode && allowExpandPreviewByClick) {
                     if (parentLayout != null) {

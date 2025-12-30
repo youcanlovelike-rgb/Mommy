@@ -691,7 +691,10 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             return canPerformActions();
         }
 
-        default boolean onAccessibilityAction(int action, Bundle arguments) {
+        default void onInitializeAccessibilityNodeInfo(ChatMessageCell cell, AccessibilityNodeInfo info) {
+        }
+
+        default boolean onAccessibilityAction(ChatMessageCell cell, int action, Bundle arguments) {
             return false;
         }
 
@@ -24402,7 +24405,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
 
     @Override
     public boolean performAccessibilityAction(int action, Bundle arguments) {
-        if (delegate != null && delegate.onAccessibilityAction(action, arguments)) {
+        if (delegate != null && delegate.onAccessibilityAction(this, action, arguments)) {
             return false;
         }
         if (action == AccessibilityNodeInfo.ACTION_CLICK) {
@@ -25058,6 +25061,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     info.setCollectionItemInfo(AccessibilityNodeInfo.CollectionItemInfo.obtain(itemInfo.getRowIndex(), 1, 0, 1, false));
                 }
                 info.addAction(new AccessibilityNodeInfo.AccessibilityAction(R.id.acc_action_msg_options, getString("AccActionMessageOptions", R.string.AccActionMessageOptions)));
+                if (delegate != null) {
+                    delegate.onInitializeAccessibilityNodeInfo(ChatMessageCell.this, info);
+                }
                 int icon = getIconForCurrentState();
                 CharSequence actionLabel = null;
                 switch (icon) {
