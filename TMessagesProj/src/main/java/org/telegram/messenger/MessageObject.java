@@ -3565,11 +3565,10 @@ public class MessageObject {
             }
             translated = true;
             if (translatedText != null) {
+                mergedEntities = null;
                 applyNewText(!NekoConfig.showOriginal ? translatedText.text : (
                         (messageOwner.voiceTranscriptionOpen ? messageOwner.voiceTranscription : messageOwner.message) +
-                                "\n" +
-                                "--------" +
-                                "\n" + translatedText.text));
+                                Translator.TRANSLATION_SEPARATOR + translatedText.text));
                 generateCaption();
             }
             return replyUpdated || true;
@@ -6870,10 +6869,9 @@ public class MessageObject {
             text = messageOwner.message = messageOwner.media.description;
         }
         if (messageOwner.translatedText != null && (captionTranslated = translated)) {
+            mergedEntities = null;
             text = !NekoConfig.showOriginal ? messageOwner.translatedText.text : (messageOwner.message +
-                    "\n" +
-                    "--------" +
-                    "\n" + messageOwner.translatedText.text);
+                    Translator.TRANSLATION_SEPARATOR + messageOwner.translatedText.text);
             entities =  getEntities(false);
         }
         if (!isMediaEmpty() && !(getMedia(messageOwner) instanceof TLRPC.TL_messageMediaGame) && !TextUtils.isEmpty(text)) {
@@ -7214,13 +7212,29 @@ public class MessageObject {
         return getEntities(true);
     }
 
+    private ArrayList<TLRPC.MessageEntity> mergedEntities;
+
     public ArrayList<TLRPC.MessageEntity> getEntities(boolean voice) {
         if (messageOwner == null) return null;
         if (translated) {
             if (voice && messageOwner.voiceTranscriptionOpen) {
-                return NekoConfig.showOriginal ? null : messageOwner.translatedVoiceTranscription != null ? messageOwner.translatedVoiceTranscription.entities : null;
+                if (NekoConfig.showOriginal) {
+                    return null;
+                } else {
+                    return messageOwner.translatedVoiceTranscription != null ? messageOwner.translatedVoiceTranscription.entities : null;
+                }
             } else {
-                return NekoConfig.showOriginal ? messageOwner.entities : messageOwner.translatedText != null ? messageOwner.translatedText.entities : null;
+                if (NekoConfig.showOriginal) {
+                    if (mergedEntities != null) {
+                        return mergedEntities;
+                    }
+                    var offset = messageOwner.message.length() + Translator.TRANSLATION_SEPARATOR.length();
+                    mergedEntities = Translator.mergeEntities(messageOwner.entities,
+                            messageOwner.translatedText != null ? messageOwner.translatedText.entities : null, offset);
+                    return mergedEntities;
+                } else {
+                    return messageOwner.translatedText != null ? messageOwner.translatedText.entities : null;
+                }
             }
         }
         return messageOwner.entities;

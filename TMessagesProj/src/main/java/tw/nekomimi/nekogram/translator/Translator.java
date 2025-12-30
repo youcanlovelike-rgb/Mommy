@@ -24,6 +24,8 @@ import org.telegram.messenger.TranslateController;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.Utilities;
 import org.telegram.tgnet.TLRPC;
+import org.telegram.tgnet.json.TLJsonBuilder;
+import org.telegram.tgnet.json.TLJsonParser;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
@@ -54,6 +56,8 @@ public class Translator {
     public static final String PROVIDER_BAIDU = "baidu";
     public static final String PROVIDER_SOGOU = "sogou";
     public static final String PROVIDER_TENCENT = "tencent";
+
+    public static final String TRANSLATION_SEPARATOR = "\n--------\n";
 
     private static final ListeningExecutorService executorService = MoreExecutors.listeningDecorator(Executors.newCachedThreadPool());
     private static final LruCache<Pair<String, String>, TranslationResult> cache = new LruCache<>(200);
@@ -314,6 +318,23 @@ public class Translator {
         textWithEntities.text = text;
         if (entities != null) textWithEntities.entities = entities;
         return textWithEntities;
+    }
+
+    private static TLRPC.MessageEntity copyEntity(TLRPC.MessageEntity entity) {
+        return TLRPC.MessageEntity.TLJsonDeserialize(new TLJsonParser(TLJsonBuilder.serialize(entity)));
+    }
+
+    public static ArrayList<TLRPC.MessageEntity> mergeEntities(ArrayList<TLRPC.MessageEntity> entities1, ArrayList<TLRPC.MessageEntity> entities2, int offset) {
+        ArrayList<TLRPC.MessageEntity> result = new ArrayList<>(entities1);
+        if (entities2 != null) {
+            for (TLRPC.MessageEntity entity : entities2) {
+                var copy = copyEntity(entity);
+                if (copy == null) continue;
+                copy.offset += offset;
+                result.add(copy);
+            }
+        }
+        return result;
     }
 
     private static String normalizeLanguageCode(ITranslator translator, String language, String country) {
