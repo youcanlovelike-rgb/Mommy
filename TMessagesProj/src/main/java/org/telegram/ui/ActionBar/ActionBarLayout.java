@@ -872,6 +872,7 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
         if (!fragmentsStack.isEmpty()) {
             BaseFragment lastFragment = fragmentsStack.get(fragmentsStack.size() - 1);
             lastFragment.onResume();
+            AnalyticsHelper.trackFragmentLifecycle("resumed", lastFragment);
         }
         if (sheetFragment != null) {
             sheetFragment.onResume();
@@ -894,6 +895,7 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
         if (!fragmentsStack.isEmpty()) {
             BaseFragment lastFragment = fragmentsStack.get(fragmentsStack.size() - 1);
             lastFragment.onPause();
+            AnalyticsHelper.trackFragmentLifecycle("paused", lastFragment);
         }
         if (sheetFragment != null) {
             sheetFragment.onPause();
@@ -1211,6 +1213,7 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
 
             fragmentsStack.remove(fragmentsStack.size() - 1);
             onFragmentStackChanged("onSlideAnimationEnd");
+            AnalyticsHelper.trackFragmentLifecycle("destroyed", lastFragment);
 
             LayoutContainer temp = containerView;
             containerView.setAlpha(1.0f);
@@ -2110,7 +2113,7 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
             fragment.onTransitionAnimationEnd(true, false);
             fragment.onBecomeFullyVisible();
         }
-        AnalyticsHelper.trackScreenView();
+        AnalyticsHelper.trackFragmentLifecycle("created", fragment);
         return true;
     }
 
@@ -2187,6 +2190,7 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                 backgroundView.setVisibility(VISIBLE);
             }
         }
+        AnalyticsHelper.trackFragmentLifecycle("created", fragment);
         return true;
     }
 
@@ -2263,6 +2267,7 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
             bringChildToFront(sheetContainer);
         }
         onFragmentStackChanged("closeLastFragmentInternalRemoveOld");
+        AnalyticsHelper.trackFragmentLifecycle("destroyed", fragment);
     }
 
     @Override
@@ -2609,6 +2614,7 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                 onFragmentStackChanged("removeFragmentFromStackInternal " + allowFinishFragment);
             }
         }
+        AnalyticsHelper.trackFragmentLifecycle("destroyed", fragment);
     }
 
     @Override
