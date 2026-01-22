@@ -52,11 +52,9 @@ public class AnalyticsHelper {
             options.setPrintUncaughtStackTrace(true);
             options.setSendDefaultPii(true);
             options.setEnableUserInteractionTracing(true);
-            options.setAttachScreenshot(true);
             options.setAttachViewHierarchy(true);
             options.setEnableSystemEventBreadcrumbsExtras(true);
-            options.setAttachAnrThreadDump(true);
-            options.setTracesSampleRate(1.0);
+            options.setTracesSampleRate(0.1);
         });
         var user = new User();
         user.setId(userId);
