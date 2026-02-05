@@ -353,7 +353,7 @@ public class MessageHelper extends BaseController {
     }
 
     public void saveStickerToGallery(Activity activity, MessageObject messageObject, Utilities.Callback<Uri> callback) {
-        saveStickerToGallery(activity, getPathToMessage(messageObject), messageObject.isVideoSticker(), callback);
+        saveStickerToGallery(activity, getPathToMessage(messageObject), messageObject.isVideoSticker(), messageObject.isAnimatedSticker(), callback);
     }
 
     public static void saveStickerToGallery(Activity activity, TLRPC.Document document, Utilities.Callback<Uri> callback) {
@@ -362,21 +362,22 @@ public class MessageHelper extends BaseController {
         if (!temp.exists()) {
             return;
         }
-        saveStickerToGallery(activity, path, MessageObject.isVideoSticker(document), callback);
+        saveStickerToGallery(activity, path, MessageObject.isVideoSticker(document), MessageObject.isAnimatedStickerDocument(document, true), callback);
     }
 
-    private static void saveStickerToGallery(Activity activity, String path, boolean video, Utilities.Callback<Uri> callback) {
+    private static void saveStickerToGallery(Activity activity, String path, boolean video, boolean animated, Utilities.Callback<Uri> callback) {
         Utilities.globalQueue.postRunnable(() -> {
             try {
-                if (video) {
-                    MediaController.saveFile(path, activity, 1, null, null, callback);
+                if (video || animated) {
+                    StickerHelper.convertStickerFormat(path, animated, path1 -> Utilities.globalQueue.postRunnable(() ->
+                            MediaController.saveFile(path1, activity, 0, null, null, callback)));
                 } else {
-                    Bitmap image = BitmapFactory.decodeFile(path);
+                    var image = BitmapFactory.decodeFile(path);
                     if (image != null) {
-                        File file = new File(path.endsWith(".webp") ? path.replace(".webp", ".png") : path + ".png");
-                        FileOutputStream stream = new FileOutputStream(file);
-                        image.compress(Bitmap.CompressFormat.PNG, 100, stream);
-                        stream.close();
+                        var file = new File(path.endsWith(".webp") ? path.replace(".webp", ".png") : path + ".png");
+                        try (var stream = new FileOutputStream(file)) {
+                            image.compress(Bitmap.CompressFormat.PNG, 100, stream);
+                        }
                         MediaController.saveFile(file.toString(), activity, 0, null, null, callback);
                     }
                 }
