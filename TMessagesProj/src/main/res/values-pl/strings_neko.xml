@@ -311,7 +311,6 @@
     <string name="ShortStandardQuality">SD</string>
     <string name="ForceFontWeightFallback">Wymuś przywrócenie wagi czcionki</string>
     <string name="HideChannelBottomButtons">Ukryj dolne przyciski kanału</string>
-    <string name="TranslationKeepFormatting"></string>
     <!-- Accessibility -->
     <string name="AccessibilitySettings">Ustawienia ułatwień dostępu</string>
 </resources>

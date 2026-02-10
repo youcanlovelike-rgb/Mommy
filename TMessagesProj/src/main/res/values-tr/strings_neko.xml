@@ -19,7 +19,6 @@
     <string name="NoQuoteForwardShort">Gönderen yok</string>
     <string name="NoCaptionForwardShort">Başlık Yok(if Caption = Title mean) / Altyazı Yok (if Caption = subtitle mean) </string>
     <string name="Repeat">Tekrarla</string>
-    <string name="AddToSavedMessages"></string>
     <string name="CreateMention">Bahset</string>
     <string name="Prpr">Peropero</string>
     <string name="NekogramRunning">Nekogram çalışıyor</string>
@@ -152,7 +151,6 @@
     <string name="QRLoginTitle">QR ile Giriş</string>
     <string name="NoTranslatorAppInstalled">Çevirme isteğinizi gerçekleştirebilecek uygulamalarınız yok, devam etmek için lütfen bir tane yükleyin</string>
     <string name="DisableVoiceMessagesAutoPlay">Sesli mesajları otomatik oynatmayı devre dışı bırak</string>
-    <string name="UnmuteVideosWithVolumeButtons"></string>
     <string name="TranslatorType">Tür</string>
     <string name="TranslatorTypeNeko">Mesajda</string>
     <string name="TranslatorTypeTG">Açılır pencere</string>
@@ -307,12 +305,9 @@
     <string name="PreferOriginalQuality">Orijinal kaliteyi tercih edin</string>
     <string name="PreferOriginalQualityDesc">Videoları orijinal kalitede göster.</string>
     <string name="AutoInlineBot">Otomatik satır içi botu</string>
-    <string name="AutoInlineBotDesc"></string>
     <string name="ShortStandardQuality">SD</string>
     <string name="ForceFontWeightFallback">Yazı tipi ağırlığı yedeklemesini zorla</string>
     <string name="HideChannelBottomButtons">Kanallarda aşağı butonları gizle</string>
     <string name="TranslationKeepFormatting">Çeviri sırasında orijinal metin biçimini koru</string>
-    <string name="PredictiveBackAnimation"></string>
     <!-- Accessibility -->
-    <string name="AccessibilitySettings"></string>
 </resources>
