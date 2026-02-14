@@ -8,28 +8,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 🛠️ 究极手术：深度抹除与重塑包名
+      - name: 🛠️ 究极手术：深度抹除与重塑包名 (修正版)
         run: |
           # 1. 注入你的 API
           find TMessagesProj/ -name "BuildVars.java" -exec sed -i 's/public static int APP_ID = .*/public static int APP_ID = 37274250;/g' {} +
           find TMessagesProj/ -name "BuildVars.java" -exec sed -i 's/public static String APP_HASH = .*/public static String APP_HASH = "5205cbdae6cecc6ce1bd494b5685fe16";/g' {} +
           
-          # 2. 全局改名：将 Nekogram 替换为 Mommy
+          # 2. 全局改名
           find . -type f -exec sed -i 's/Nekogram/Mommy/g' {} +
           
           # 3. 提速：32 线程
           find TMessagesProj/ -name "FileLoader.java" -exec sed -i 's/currentUploadOperationsCount < [0-9]/currentUploadOperationsCount < 32/g' {} +
           find TMessagesProj/ -name "FileLoadOperation.java" -exec sed -i 's/currentDownloadOperationsCount < [0-9]/currentDownloadOperationsCount < 32/g' {} +
 
-          # 4. 【核心暴力手术】地毯式替换所有可能的包名后缀
-          # 这一步会扫描所有文件，把所有版本的 Nekogram 包名全部强制改为你的
+          # 4. 地毯式替换包名文本 (针对 Manifest 和 java 文件)
           grep -rl "tw.nekomimi.nekogram" . | xargs sed -i 's/tw.nekomimi.nekogram.beta/org.mommy.messenger/g' || true
           grep -rl "tw.nekomimi.nekogram" . | xargs sed -i 's/tw.nekomimi.nekogram/org.mommy.messenger/g' || true
           grep -rl "org.nekogram.messenger" . | xargs sed -i 's/org.nekogram.messenger/org.mommy.messenger/g' || true
           
-          # 5. 【必杀技】强制在所有 build.gradle 中覆盖 applicationId
-          # 这一步是为了防止 Gradle 的 productFlavors 重新定义包名
-          find . -name "build.gradle" -exec sed -i '/applicationId /c\        applicationId "org.mommy.messenger"' {} +
+          # 5. 精准替换 build.gradle 中的 applicationId，不破坏文件结构
+          find . -name "build.gradle" -type f -exec sed -i 's/applicationId "[^"]*"/applicationId "org.mommy.messenger"/g' {} +
+          find . -name "build.gradle" -type f -exec sed -i 's/applicationIdSuffix "[^"]*"//g' {} +
 
           # 6. 注入私密配置文件
           echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > TMessagesProj_App/google-services.json
@@ -41,10 +40,9 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      - name: 🏗️ 清理并重新编译
+      - name: 🏗️ 重新编译
         run: |
           chmod +x gradlew
-          ./gradlew clean  # 先清理缓存，确保替换生效
           ./gradlew assembleDebug
 
       - name: 📦 导出 Mommy 安装包
