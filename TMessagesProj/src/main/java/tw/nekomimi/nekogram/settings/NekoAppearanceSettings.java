@@ -11,9 +11,6 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
-import org.telegram.ui.ActionBar.Theme;
-import org.telegram.ui.ActionBar.ThemeDescription;
-import org.telegram.ui.Cells.DrawerProfileCell;
 import org.telegram.ui.Cells.HeaderCell;
 import org.telegram.ui.Cells.TextCheckCell;
 import org.telegram.ui.Cells.TextInfoPrivacyCell;
@@ -27,8 +24,6 @@ import tw.nekomimi.nekogram.helpers.EmojiHelper;
 import tw.nekomimi.nekogram.helpers.PopupHelper;
 
 public class NekoAppearanceSettings extends BaseNekoSettingsActivity implements NotificationCenter.NotificationCenterDelegate {
-
-    private DrawerProfilePreviewCell profilePreviewCell;
 
     private int drawerRow;
     private int avatarAsDrawerBackgroundRow;
@@ -110,7 +105,6 @@ public class NekoAppearanceSettings extends BaseNekoSettingsActivity implements 
                 ((TextCheckCell) view).setChecked(NekoConfig.avatarAsDrawerBackground);
             }
             getNotificationCenter().postNotificationName(NotificationCenter.mainUserInfoChanged);
-            TransitionManager.beginDelayedTransition(profilePreviewCell);
             listAdapter.notifyItemChanged(drawerRow, PARTIAL);
             if (NekoConfig.avatarAsDrawerBackground) {
                 updateRows();
@@ -330,20 +324,6 @@ public class NekoAppearanceSettings extends BaseNekoSettingsActivity implements 
                     }
                     break;
                 }
-                case Integer.MAX_VALUE: {
-                    DrawerProfilePreviewCell cell = (DrawerProfilePreviewCell) holder.itemView;
-                    cell.setUser(getUserConfig().getCurrentUser(), false);
-                    break;
-                }
-            }
-        }
-
-        @Override
-        public View createCustomView(int viewType) {
-            if (viewType == Integer.MAX_VALUE) {
-                return profilePreviewCell = new DrawerProfilePreviewCell(mContext);
-            } else {
-                return super.createCustomView(viewType);
             }
         }
 
@@ -368,31 +348,5 @@ public class NekoAppearanceSettings extends BaseNekoSettingsActivity implements 
             }
             return TYPE_SETTINGS;
         }
-    }
-
-    @Override
-    public ArrayList<ThemeDescription> getThemeDescriptions() {
-        ThemeDescription.ThemeDescriptionDelegate cellDelegate = () -> {
-            if (listView != null) {
-                for (int i = 0; i < listView.getChildCount(); i++) {
-                    View child = listView.getChildAt(i);
-                    if (child instanceof DrawerProfileCell profileCell) {
-                        profileCell.applyBackground(true);
-                        profileCell.updateColors();
-                    }
-                }
-            }
-        };
-        ArrayList<ThemeDescription> themeDescriptions = super.getThemeDescriptions();
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{DrawerProfileCell.class}, null, null, null, Theme.key_chats_menuName));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{DrawerProfileCell.class}, null, null, null, Theme.key_chats_menuPhone));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{DrawerProfileCell.class}, null, null, null, Theme.key_chats_menuPhoneCats));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{DrawerProfileCell.class}, null, null, null, Theme.key_chat_serviceBackground));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{DrawerProfileCell.class}, null, null, null, Theme.key_chats_menuTopShadow));
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{DrawerProfileCell.class}, null, null, null, Theme.key_chats_menuTopShadowCats));
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_IMAGECOLOR, new Class[]{DrawerProfileCell.class}, new String[]{"darkThemeView"}, null, null, null, Theme.key_chats_menuName));
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_CELLBACKGROUNDCOLOR | ThemeDescription.FLAG_CHECKTAG, new Class[]{DrawerProfileCell.class}, null, null, cellDelegate, Theme.key_chats_menuTopBackgroundCats));
-        themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_CELLBACKGROUNDCOLOR | ThemeDescription.FLAG_CHECKTAG, new Class[]{DrawerProfileCell.class}, null, null, cellDelegate, Theme.key_chats_menuTopBackground));
-        return themeDescriptions;
     }
 }

@@ -169,6 +169,7 @@ public class ProfileGooeyView extends FrameLayout {
         public void onSizeChanged(int w, int h) {
             if (bitmap != null) {
                 bitmap.recycle();
+                bitmap = null;
             }
 
             optimizedW = Math.min(dp(120), w);
