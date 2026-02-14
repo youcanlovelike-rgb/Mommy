@@ -8,7 +8,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 🛠️ 核心手术：完全体 Mommy 版
+      - name: 🛠️ 核心手术：完全体 Mommy 版 (深度包名覆盖)
         run: |
           # 1. 注入你的 API (BuildVars.java)
           find TMessagesProj/ -name "BuildVars.java" -exec sed -i 's/public static int APP_ID = .*/public static int APP_ID = 37274250;/g' {} +
@@ -22,11 +22,16 @@ jobs:
           find TMessagesProj/ -name "FileLoadOperation.java" -exec sed -i 's/currentDownloadOperationsCount < [0-9]/currentDownloadOperationsCount < 32/g' {} +
           find TMessagesProj/ -name "FileLoadOperation.java" -exec sed -i 's/maxDownloadCount = [0-9]/maxDownloadCount = 32/g' {} +
 
-          # 4. 【新增】修改包名为 org.mommy.messenger，实现应用共存
-          find . -name "build.gradle" -type f -exec sed -i 's/applicationId ".*"/applicationId "org.mommy.messenger"/g' {} +
-          find . -name "AndroidManifest.xml" -type f -exec sed -i 's/package="org.nekogram.messenger"/package="org.mommy.messenger"/g' {} +
+          # 4. 【关键修正】深度替换所有旧包名，匹配你的 google-services.json
+          # 无论是 beta 版还是正式版，统一强制改为 org.mommy.messenger
+          find . -type f \( -name "build.gradle" -o -name "AndroidManifest.xml" \) -exec sed -i 's/tw.nekomimi.nekogram.beta/org.mommy.messenger/g' {} +
+          find . -type f \( -name "build.gradle" -o -name "AndroidManifest.xml" \) -exec sed -i 's/tw.nekomimi.nekogram/org.mommy.messenger/g' {} +
+          find . -type f \( -name "build.gradle" -o -name "AndroidManifest.xml" \) -exec sed -i 's/org.nekogram.messenger/org.mommy.messenger/g' {} +
+          
+          # 确保 applicationId 彻底被改掉
+          sed -i 's/applicationId ".*"/applicationId "org.mommy.messenger"/g' TMessagesProj_App/build.gradle
 
-          # 5. 【新增】注入你设好的私密配置文件
+          # 5. 注入你设好的私密配置文件
           echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > TMessagesProj_App/google-services.json
 
       - name: set up JDK 17
