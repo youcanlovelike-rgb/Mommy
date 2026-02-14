@@ -447,7 +447,7 @@ public class FileLoader extends BaseController {
                         }
                         if (small) {
                             currentUploadSmallOperationsCount--;
-                            if (currentUploadSmallOperationsCount < 1) {
+                            if (currentUploadSmallOperationsCount < 32) {
                                 FileUploadOperation operation12 = uploadSmallOperationQueue.poll();
                                 if (operation12 != null) {
                                     currentUploadSmallOperationsCount++;
@@ -456,7 +456,7 @@ public class FileLoader extends BaseController {
                             }
                         } else {
                             currentUploadOperationsCount--;
-                            if (currentUploadOperationsCount < 1) {
+                            if (currentUploadOperationsCount < 32) {
                                 FileUploadOperation operation12 = uploadOperationQueue.poll();
                                 if (operation12 != null) {
                                     currentUploadOperationsCount++;
@@ -483,7 +483,7 @@ public class FileLoader extends BaseController {
                         }
                         if (small) {
                             currentUploadSmallOperationsCount--;
-                            if (currentUploadSmallOperationsCount < 1) {
+                            if (currentUploadSmallOperationsCount < 32) {
                                 FileUploadOperation operation1 = uploadSmallOperationQueue.poll();
                                 if (operation1 != null) {
                                     currentUploadSmallOperationsCount++;
@@ -492,7 +492,7 @@ public class FileLoader extends BaseController {
                             }
                         } else {
                             currentUploadOperationsCount--;
-                            if (currentUploadOperationsCount < 1) {
+                            if (currentUploadOperationsCount < 32) {
                                 FileUploadOperation operation1 = uploadOperationQueue.poll();
                                 if (operation1 != null) {
                                     currentUploadOperationsCount++;
@@ -511,14 +511,14 @@ public class FileLoader extends BaseController {
                 }
             });
             if (small) {
-                if (currentUploadSmallOperationsCount < 1) {
+                if (currentUploadSmallOperationsCount < 32) {
                     currentUploadSmallOperationsCount++;
                     operation.start();
                 } else {
                     uploadSmallOperationQueue.add(operation);
                 }
             } else {
-                if (currentUploadOperationsCount < 1) {
+                if (currentUploadOperationsCount < 32) {
                     currentUploadOperationsCount++;
                     operation.start();
                 } else {
