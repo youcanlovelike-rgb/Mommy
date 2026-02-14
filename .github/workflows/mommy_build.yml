@@ -8,29 +8,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 🛠️ 究极手术：深度抹除与重塑包名 (修正版)
+      - name: 🛠️ 核心手术：精准替换与内存调优
         run: |
-          # 1. 注入你的 API
+          # 1. 注入你的 API (BuildVars.java)
           find TMessagesProj/ -name "BuildVars.java" -exec sed -i 's/public static int APP_ID = .*/public static int APP_ID = 37274250;/g' {} +
           find TMessagesProj/ -name "BuildVars.java" -exec sed -i 's/public static String APP_HASH = .*/public static String APP_HASH = "5205cbdae6cecc6ce1bd494b5685fe16";/g' {} +
           
-          # 2. 全局改名
-          find . -type f -exec sed -i 's/Nekogram/Mommy/g' {} +
+          # 2. 全局改显示名：将 Nekogram 替换为 Mommy
+          find . -name "strings.xml" -type f -exec sed -i 's/Nekogram/Mommy/g' {} +
           
           # 3. 提速：32 线程
           find TMessagesProj/ -name "FileLoader.java" -exec sed -i 's/currentUploadOperationsCount < [0-9]/currentUploadOperationsCount < 32/g' {} +
           find TMessagesProj/ -name "FileLoadOperation.java" -exec sed -i 's/currentDownloadOperationsCount < [0-9]/currentDownloadOperationsCount < 32/g' {} +
 
-          # 4. 地毯式替换包名文本 (针对 Manifest 和 java 文件)
-          grep -rl "tw.nekomimi.nekogram" . | xargs sed -i 's/tw.nekomimi.nekogram.beta/org.mommy.messenger/g' || true
-          grep -rl "tw.nekomimi.nekogram" . | xargs sed -i 's/tw.nekomimi.nekogram/org.mommy.messenger/g' || true
-          grep -rl "org.nekogram.messenger" . | xargs sed -i 's/org.nekogram.messenger/org.mommy.messenger/g' || true
-          
-          # 5. 精准替换 build.gradle 中的 applicationId，不破坏文件结构
+          # 4. 精准包名对齐：只改配置，不改源码包路径 (防止编译失败)
           find . -name "build.gradle" -type f -exec sed -i 's/applicationId "[^"]*"/applicationId "org.mommy.messenger"/g' {} +
           find . -name "build.gradle" -type f -exec sed -i 's/applicationIdSuffix "[^"]*"//g' {} +
+          find . -name "AndroidManifest.xml" -type f -exec sed -i 's/package="tw.nekomimi.nekogram.beta"/package="org.mommy.messenger"/g' {} +
+          find . -name "AndroidManifest.xml" -type f -exec sed -i 's/package="tw.nekomimi.nekogram"/package="org.mommy.messenger"/g' {} +
 
-          # 6. 注入私密配置文件
+          # 5. 【关键】暴力解决内存不足问题
+          # 将内存限制从 512MB 提升到 4GB，让垃圾回收不再疯狂挣扎
+          echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8" >> gradle.properties
+
+          # 6. 注入私密 JSON
           echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > TMessagesProj_App/google-services.json
 
       - name: set up JDK 17
@@ -40,10 +41,11 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      - name: 🏗️ 重新编译
+      - name: 🏗️ 重新编译 (注入大内存模式)
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug
+          # 使用 --no-daemon 模式在低配环境更稳定
+          ./gradlew assembleDebug --no-daemon
 
       - name: 📦 导出 Mommy 安装包
         uses: actions/upload-artifact@v4
