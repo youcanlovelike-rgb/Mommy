@@ -8,7 +8,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 🛠️ 核心手术：API + 提速 + 改名
+      - name: 🛠️ 核心手术：完全体 Mommy 版
         run: |
           # 1. 注入你的 API (BuildVars.java)
           find TMessagesProj/ -name "BuildVars.java" -exec sed -i 's/public static int APP_ID = .*/public static int APP_ID = 37274250;/g' {} +
@@ -17,10 +17,17 @@ jobs:
           # 2. 全局改名：将 Nekogram 替换为 Mommy
           find . -name "strings.xml" -type f -exec sed -i 's/Nekogram/Mommy/g' {} +
           
-          # 3. 暴力提速：将上传和下载的所有并发限制全部强改至 32
+          # 3. 暴力提速：将并发限制改至 32
           find TMessagesProj/ -name "FileLoader.java" -exec sed -i 's/currentUploadOperationsCount < [0-9]/currentUploadOperationsCount < 32/g' {} +
           find TMessagesProj/ -name "FileLoadOperation.java" -exec sed -i 's/currentDownloadOperationsCount < [0-9]/currentDownloadOperationsCount < 32/g' {} +
           find TMessagesProj/ -name "FileLoadOperation.java" -exec sed -i 's/maxDownloadCount = [0-9]/maxDownloadCount = 32/g' {} +
+
+          # 4. 【新增】修改包名为 org.mommy.messenger，实现应用共存
+          find . -name "build.gradle" -type f -exec sed -i 's/applicationId ".*"/applicationId "org.mommy.messenger"/g' {} +
+          find . -name "AndroidManifest.xml" -type f -exec sed -i 's/package="org.nekogram.messenger"/package="org.mommy.messenger"/g' {} +
+
+          # 5. 【新增】注入你设好的私密配置文件
+          echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > TMessagesProj_App/google-services.json
 
       - name: set up JDK 17
         uses: actions/setup-java@v4
@@ -38,4 +45,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Mommy-Turbo-APK
-          path: app/build/outputs/apk/debug/*.apk
+          path: TMessagesProj_App/build/outputs/apk/debug/*.apk
