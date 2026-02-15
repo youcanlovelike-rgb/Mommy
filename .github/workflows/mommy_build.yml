@@ -8,36 +8,38 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 🛠️ 物理修复：写死配置并粉碎包名
+      - name: 🛠️ 物理修复：全量剔除 Extra 依赖并注入 Turbo
         run: |
-          # 1. 强制重写 BuildVars.java，彻底断绝与 Extra 类的关联
+          # 1. 暴力清除全项目中所有对 Extra 类的引用 (核心修复)
+          # 把 Extra.isDirectApp() 替换为 true
+          # 把 Extra.FORCE_ANALYTICS 替换为 false (关闭强制分析)
+          # 把 Extra.SENTRY_DSN 替换为 "" (清空错误上报地址)
+          # 把 Extra.getHelperBot() 替换为 null
+          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra.isDirectApp()/true/g' {} +
+          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra.FORCE_ANALYTICS/false/g' {} +
+          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra.SENTRY_DSN/""/g' {} +
+          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra.getHelperBot()/null/g' {} +
+          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra.APP_ID/37274250/g' {} +
+          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra.APP_HASH/"5205cbdae6cecc6ce1bd494b5685fe16"/g' {} +
+          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra.PLAYSTORE_APP_URL/"https:\/\/play.google.com"/g' {} +
+
+          # 2. 强制改写 BuildVars.java (双重保险)
           BV_PATH="TMessagesProj/src/main/java/org/telegram/messenger/BuildVars.java"
-          # 直接替换变量值
           sed -i 's/public static int APP_ID = .*/public static int APP_ID = 37274250;/g' $BV_PATH
           sed -i 's/public static String APP_HASH = .*/public static String APP_HASH = "5205cbdae6cecc6ce1bd494b5685fe16";/g' $BV_PATH
-          
-          # 针对你报错的那几行，直接把 Extra. 的调用替换为常量
-          sed -i 's/Extra.isDirectApp()/true/g' $BV_PATH
-          sed -i 's/Extra.APP_ID/37274250/g' $BV_PATH
-          sed -i 's/Extra.APP_HASH/"5205cbdae6cecc6ce1bd494b5685fe16"/g' $BV_PATH
-          sed -i 's/Extra.PLAYSTORE_APP_URL/"https:\/\/play.google.com\/store\/apps\/details?id=org.mommy.messenger"/g' $BV_PATH
 
-          # 2. ⚡ 32 线程并发提速 (核心 Turbo)
+          # 3. ⚡ 32 线程并发提速 (核心 Turbo)
           find TMessagesProj/ -name "FileLoader.java" -exec sed -i 's/currentUploadOperationsCount < [0-9]/currentUploadOperationsCount < 32/g' {} +
           find TMessagesProj/ -name "FileLoadOperation.java" -exec sed -i 's/currentDownloadOperationsCount < [0-9]/currentDownloadOperationsCount < 32/g' {} +
           
-          # 3. 🚀 全量包名暴力替换 (无死角平替)
+          # 4. 🚀 全量包名暴力替换
           NEW_APPID="org.mommy.messenger"
           find . -type f -exec sed -i "s/tw.nekomimi.nekogram.beta/$NEW_APPID/g" {} +
           find . -type f -exec sed -i "s/tw.nekomimi.nekogram/$NEW_APPID/g" {} +
           find . -type f -exec sed -i "s/org.nekogram.messenger/$NEW_APPID/g" {} +
 
-          # 4. 修复设置页面里的 Extra 报错
-          find . -name "NekoExperimentalSettingsActivity.java" -exec sed -i 's/Extra.isDirectApp()/true/g' {} +
-
           # 5. 【清理后缀】防止 Gradle 动态拼接
           find . -name "*.gradle" -type f -exec sed -i 's/applicationIdSuffix ".beta"//g' {} +
-          find . -name "*.gradle" -type f -exec sed -i 's/applicationIdSuffix ""//g' {} +
           
           # 6. 改名 Mommy
           find . -name "strings.xml" -type f -exec sed -i 's/Nekogram/Mommy/g' {} +
