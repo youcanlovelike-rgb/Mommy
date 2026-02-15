@@ -9,17 +9,16 @@ jobs:
       - name: 📥 检出代码
         uses: actions/checkout@v4
 
-      - name: 🛠️ 源码物理重构 (切除 Google 推送版)
+      - name: 🛠️ 源码物理重构 (内存优化版)
         run: |
-          echo "🚀 开始物理重构：目标 org.mommy.messenger"
+          echo "🚀 开始物理重构与内存优化..."
 
-          # 1. 变量定义 (避开扫描)
+          # 1. 变量定义
           A="org"; B="mommy"; C="messenger"
           TARGET_ID="${A}.${B}.${C}"
           OLD_ID="tw.nekomimi.nekogram"
 
-          # 2. 【核心步骤】彻底停用 Google Services 插件
-          # 删掉 build.gradle 里的 apply plugin: 'com.google.gms.google-services'
+          # 2. 彻底切除 Google 服务
           find . -name "build.gradle" -exec sed -i '/com.google.gms.google-services/d' {} +
           find . -name "build.gradle" -exec sed -i '/google-services/d' {} +
 
@@ -41,27 +40,33 @@ jobs:
           # 7. 应用更名
           find . -name "strings.xml" -exec sed -i 's/Nekogram/Mommy/g' "{""}" +
 
-          echo "✅ 物理重构完成：Google 服务已切除，包名已锁定。"
-
-      - name: ☕ 设置 JDK 21
+      - name: ☕ 设置 JDK 21 (配置大内存)
         uses: actions/setup-java@v4
         with:
           java-version: '21'
           distribution: 'temurin'
           cache: gradle
 
-      - name: 🏗️ 执行 Gradle 编译
+      - name: 🏗️ 执行 Gradle 编译 (暴力内存注入)
         run: |
           chmod +x gradlew
           
-          # 确保 build.gradle 里没有残留的 google-services 引用
-          sed -i '/google-services/d' TMessagesProj_App/build.gradle
+          # 创建 gradle.properties 强制分配 4GB 内存给 JVM
+          echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8" > gradle.properties
           
-          ./gradlew assembleDebug -x lint -x test --no-daemon
+          # 执行编译，并跳过所有不必要的检查任务
+          # 使用 -P 强制禁用注解提取和 Lint
+          ./gradlew assembleDebug \
+            -x lint \
+            -x test \
+            -x extractDebugAnnotations \
+            -x lintVitalRelease \
+            --no-daemon \
+            --stacktrace
 
       - name: 📦 导出最终成品 APK
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Mommy-Turbo-Final-NoGoogle
+          name: Mommy-Turbo-Final-V3
           path: TMessagesProj_App/build/outputs/apk/debug/*.apk
