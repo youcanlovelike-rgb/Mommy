@@ -13,38 +13,44 @@ jobs:
         env:
           G_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
+          # 0. 规避 GitHub 脱敏干扰：将 find 的后缀进行变量拆解
+          B1="{"
+          B2="}"
+          TARGET="${B1}${B2} +"
+
           # 1. 变量粉碎：锁定 API ID 并切断监控 DSN
-          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.is[A-Za-z0-9]*([^)]*)/true/g' {} +
-          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.[A-Za-z0-9_]*DSN/""/g' {} +
-          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.TWPIC_BOT_USERNAME/"Bot"/g' {} +
-          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.getUserInfoBot([^)]*)/null/g' {} +
-          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.getHelperBot()/null/g' {} +
-          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.APP_ID/37274250/g' {} +
-          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.APP_HASH/"5205cbdae6cecc6ce1bd494b5685fe16"/g' {} +
+          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.is[A-Za-z0-9]*([^)]*)/true/g' $TARGET
+          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.[A-Za-z0-9_]*DSN/""/g' $TARGET
+          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.TWPIC_BOT_USERNAME/"Bot"/g' $TARGET
+          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.getUserInfoBot([^)]*)/null/g' $TARGET
+          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.getHelperBot()/null/g' $TARGET
+          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.APP_ID/37274250/g' $TARGET
+          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.APP_HASH/"5205cbdae6cecc6ce1bd494b5685fe16"/g' $TARGET
 
-          # 2. 依赖清洗：只屏蔽 Sentry 监控，保留 Google 服务
-          find . -name "*.gradle" -type f -exec sed -i 's/.*io\.sentry.*/\/\/&/g' {} +
-          find . -name "*.gradle" -type f -exec sed -i 's/sentry {/\/\/sentry {/g' {} +
+          # 2. 依赖清洗：屏蔽 Sentry 监控
+          find . -name "*.gradle" -type f -exec sed -i 's/.*io\.sentry.*/\/\/&/g' $TARGET
+          find . -name "*.gradle" -type f -exec sed -i 's/sentry {/\/\/sentry {/g' $TARGET
 
-          # 3. 🚀 安全注入 JSON (通过 printf 避开 GitHub 星号脱敏破坏)
+          # 3. 🚀 安全注入 JSON (printf 是二进制安全的，能避开星号干扰)
           if [ -n "$G_JSON" ]; then
             printf '%s' "$G_JSON" > TMessagesProj_App/google-services.json
-            echo "✅ Google Services JSON 注入成功"
+            echo "✅ Google Services JSON 已成功安全注入"
           else
-            echo "⚠️ Warning: G_JSON 变量为空，推送可能失效"
+            echo "⚠️ Warning: G_JSON 变量为空，正在生成空壳防止编译报错"
             echo '{"project_info":{"project_id":"mommy"},"client":[{"client_info":{"client_id":"0"}}]}' > TMessagesProj_App/google-services.json
           fi
 
           # 4. ⚡ 32 线程并发提速 (物理 Turbo)
-          find TMessagesProj/ -name "FileLoader.java" -exec sed -i 's/currentUploadOperationsCount < [0-9]*/currentUploadOperationsCount < 32/g' {} +
-          find TMessagesProj/ -name "FileLoadOperation.java" -exec sed -i 's/currentDownloadOperationsCount < [0-9]*/currentDownloadOperationsCount < 32/g' {} +
+          # 强制修改 FileLoader.java 中的并发计数器逻辑
+          find TMessagesProj/ -name "FileLoader.java" -exec sed -i 's/currentUploadOperationsCount < [0-9]*/currentUploadOperationsCount < 32/g' $TARGET
+          find TMessagesProj/ -name "FileLoadOperation.java" -exec sed -i 's/currentDownloadOperationsCount < [0-9]*/currentDownloadOperationsCount < 32/g' $TARGET
 
           # 5. 🚀 全量包名与更名 (Mommy 化)
           NEW_APPID="org.mommy.messenger"
-          find . -type f -exec sed -i "s/tw.nekomimi.nekogram.beta/$NEW_APPID/g" {} +
-          find . -type f -exec sed -i "s/tw.nekomimi.nekogram/$NEW_APPID/g" {} +
-          find . -name "strings.xml" -type f -exec sed -i 's/Nekogram/Mommy/g' {} +
-          find . -name "strings.xml" -type f -exec sed -i 's/Neko/Mommy/g' {} +
+          find . -type f -exec sed -i "s/tw.nekomimi.nekogram.beta/$NEW_APPID/g" $TARGET
+          find . -type f -exec sed -i "s/tw.nekomimi.nekogram/$NEW_APPID/g" $TARGET
+          find . -name "strings.xml" -type f -exec sed -i 's/Nekogram/Mommy/g' $TARGET
+          find . -name "strings.xml" -type f -exec sed -i 's/Neko/Mommy/g' $TARGET
 
       - name: ☕ 设置 JDK 21
         uses: actions/setup-java@v4
