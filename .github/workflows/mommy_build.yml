@@ -12,8 +12,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 1. 【核心】缓存：保住 43 分钟 NDK 编译成果
-      - name: ⚡ 恢复 NDK 与 Gradle 编译缓存
+      # 1. 恢复 NDK 与 Gradle 编译缓存 (保住你那 43 分钟的成果)
+      - name: 📂 Restore Cache
         uses: actions/cache@v4
         with:
           path: |
@@ -26,47 +26,44 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-ndk-v43-ultra-
 
-      - name: 🛠️ 终极全自动：修正路径 + API + 32倍速 + 7G内存
+      # 2. 核心定制步骤 (已修正 XML 逻辑与缩进)
+      - name: 🛠️ Mommy Customization
         run: |
-          # A. 注入 API 凭据 (37274250)
-          API_ID="37274250"
-          API_HASH="5205cbdae6cecc6ce1bd494b5685fe16"
-          find TMessagesProj/src/main/java/org/telegram/messenger -name "BuildVars.java" -exec sed -i "s/public static int APP_ID = .*/public static int APP_ID = $API_ID;/g" {} +
-          find TMessagesProj/src/main/java/org/telegram/messenger -name "BuildVars.java" -exec sed -i "s/public static String APP_HASH = .*/public static String APP_HASH = \"$API_HASH\";/g" {} +
+          # A. API 注入
+          sed -i 's/public static int APP_ID = .*/public static int APP_ID = 37274250;/g' TMessagesProj/src/main/java/org/telegram/messenger/BuildVars.java
+          sed -i 's/public static String APP_HASH = .*/public static String APP_HASH = "5205cbdae6cecc6ce1bd494b5685fe16";/g' TMessagesProj/src/main/java/org/telegram/messenger/BuildVars.java
 
-          # B. 修改 APP 名字与全量包名
-          find TMessagesProj/src/main/res -name "strings.xml" -exec sed -i 's#<string name="AppName">Telegram</string>#<string name="AppName">Mommy Messenger</string>#g' {} +
-          sed -i 's/applicationId .*/applicationId "org.mommy.messenger"/' TMessagesProj/build.gradle
-          find TMessagesProj/src/main -name "AndroidManifest.xml" -exec sed -i 's/package="org.telegram.messenger"/package="org.mommy.messenger"/g' {} +
+          # B. 修改 APP 名字与包名 (保持物理路径不变，确保缓存命中)
+          find TMessagesProj/src/main/res -name "strings.xml" -exec sed -i 's/>Telegram</>Mommy Messenger</g' {} +
+          sed -i 's/applicationId "org.telegram.messenger"/applicationId "org.mommy.messenger"/' TMessagesProj/build.gradle
           
-          # 暴力替换源码中的包名字符串引用 (这一步不移动文件夹，只改内容)
-          find TMessagesProj/src/main/java -name "*.java" -exec sed -i 's/org.telegram.messenger/org.mommy.messenger/g' {} +
-
-          # C. ⚡ 开启 32 倍速并行流与 7G 大内存支持 (注意：路径保持旧路径以匹配物理文件夹)
+          # C. ⚡ 32 倍速并行流与 Premium 强制开启
           find TMessagesProj/src/main/java/org/telegram/messenger -name "FileLoader.java" -exec sed -i 's/private int maxConnections = .*/private int maxConnections = 32;/g' {} +
           find TMessagesProj/src/main/java/org/telegram/messenger -name "FileLoader.java" -exec sed -i 's/return premium ? .*/return 32;/g' {} +
           find TMessagesProj/src/main/java/org/telegram/messenger -name "UserConfig.java" -exec sed -i 's/public boolean isPremium() {/public boolean isPremium() { return true;/g' {} +
           
-          # 开启 Android 大堆内存模式
-          find TMessagesProj/src/main -name "AndroidManifest.xml" -exec sed -i 's/<application/<application android:largeHeap="true" android:hardwareAccelerated="true"/g' {} +
+          # D. ✅ 修复 XML 语法 (精准插入，不再破坏标签)
+          find TMessagesProj/src/main -name "AndroidManifest.xml" -exec sed -i 's/android:name=".TelegramApp"/android:name=".TelegramApp" android:largeHeap="true"/g' {} +
 
-          # D. 依赖注入与环境修复 (API 33 + 32位架构)
-          echo "${{ secrets.GOOGLE_SERVICES_JSON }}" > TMessagesProj/google-services.json
-          echo 'dependencies { implementation "com.google.firebase:firebase-common:21.0.0"; implementation "com.google.firebase:firebase-messaging:24.0.0"; implementation "com.google.android.gms:play-services-base:18.3.0" }' >> TMessagesProj/build.gradle
-          echo 'afterEvaluate { tasks.matching { it.name.contains("googleServices") }.all { enabled = false } }' >> TMessagesProj/build.gradle
-          
+          # E. 🗑️ 干掉 32 位 (锁定 arm64-v8a，极致提速)
+          sed -i '/abiFilters/c\            abiFilters "arm64-v8a"' TMessagesProj/build.gradle
+
+          # F. 环境补丁
+          if [ -n "${{ secrets.GOOGLE_SERVICES_JSON }}" ]; then
+            echo "${{ secrets.GOOGLE_SERVICES_JSON }}" > TMessagesProj/google-services.json
+          fi
           sed -i 's/targetSdkVersion .*/targetSdkVersion 33/' TMessagesProj/build.gradle
-          sed -i '/abiFilters/c\            abiFilters "armeabi-v7a", "arm64-v8a"' TMessagesProj/build.gradle
 
-      - name: 🏗️ 运行 7G 大内存编译打包
+      # 3. 运行编译 (使用 7G 大内存配置)
+      - name: 🏗️ Build APK
         env:
           _JAVA_OPTIONS: "-Xmx7g -Xms2g -XX:MaxMetaspaceSize=1g"
           GRADLE_OPTS: "-Dorg.gradle.jvmargs='-Xmx7g -Xms2g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8'"
         run: ./gradlew assembleDebug --stacktrace --no-daemon
 
-      - name: 📤 上传最终版 APK
+      # 4. 上传最终版 APK
+      - name: 📤 Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Mommy-Messenger-Final-Ultra
+          name: Mommy-Messenger-v8a-Speed
           path: TMessagesProj/build/outputs/apk/debug/*.apk
-          compression-level: 0
