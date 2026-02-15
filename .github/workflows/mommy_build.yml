@@ -1,11 +1,10 @@
 name: Build Mommy Turbo Vacuum (No Google)
 on:
-  workflow_dispatch: # 支持手动点击运行
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    # 设置权限以确保能够上传产物
     permissions:
       contents: read
       actions: write
@@ -14,34 +13,28 @@ jobs:
       - name: 📥 检出代码
         uses: actions/checkout@v4
         with:
-          submodules: recursive # 确保子模块（如 JNI 相关代码）也被检出
+          submodules: recursive
 
-      - name: 🛠️ 源码物理重构 (全量修复最终版)
+      - name: 🛠️ 源码物理重构 (防监控+超全量补全版)
         run: |
-          echo "🚀 开始最终物理重构，补全 Extra 类并注入 Turbo 补丁..."
+          echo "🚀 正在注入补丁：替换频道、屏蔽监控、补全符号..."
 
-          # 1. 变量定义
           TARGET_ID="org.mommy.messenger"
 
-          # 2. 注入全局属性 (利用 properties 文件最高优先级规避变量丢失)
+          # 1. 注入最高优先级全局属性
           cat <<EOF > gradle.properties
           org.gradle.jvmargs=-Xmx6144m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8
           org.gradle.parallel=false
-          org.gradle.configureondemand=true
           APP_ID=37274250
           APP_HASH=5205cbdae6cecc6ce1bd494b5685fe16
           APP_PACKAGE=$TARGET_ID
           TG_APP_PACKAGE=$TARGET_ID
           APP_VERSION_CODE=1000
           APP_VERSION_NAME=1.0.0
-          TG_APP_VERSION_CODE=1000
-          TG_APP_VERSION_NAME=1.0.0
-          TG_APP_ID=37274250
-          TG_APP_HASH=5205cbdae6cecc6ce1bd494b5685fe16
           EOF
 
-          # 3. 【核心修复】强行创建一个 Extra.java
-          # 解决 "cannot find symbol: variable Extra" 报错，锁定 Direct 模式
+          # 2. 【核心修复】创建终极 Extra.java
+          # 已填入你的频道：https://t.me/oksnsksms
           mkdir -p TMessagesProj/src/main/java/tw/nekomimi/nekogram/
           cat <<EOF > TMessagesProj/src/main/java/tw/nekomimi/nekogram/Extra.java
           package tw.nekomimi.nekogram;
@@ -49,27 +42,33 @@ jobs:
               public static int APP_ID = 37274250;
               public static String APP_HASH = "5205cbdae6cecc6ce1bd494b5685fe16";
               public static String PLAYSTORE_APP_URL = "https://play.google.com/store/apps/details?id=$TARGET_ID";
+              public static String OFFICIAL_CHANNEL = "https://t.me/oksnsksms";
+              public static String TRANSLATION_API_KEY = "";
+              public static String TRANSLATION_API_ID = "";
               public static boolean isDirectApp() { return true; }
               public static boolean isBeta() { return false; }
+              public static String getHelperBot() { return "NekogramBot"; }
+              public static boolean isGoogle() { return false; } 
+              public static String getAppUpdateUrl() { return ""; }
+              public static boolean isSentryEnabled() { return false; }
           }
           EOF
 
-          # 4. 暴力注入 32 线程 Turbo 补丁
-          # 模糊匹配空格和数值，确保 100% 替换成功
+          # 3. 32 线程 Turbo 补丁 (上传下载全开)
           find TMessagesProj/ -name "FileLoader.java" -exec sed -i 's/currentUploadOperationsCount[[:space:]]*<[[:space:]]*[0-9]*/currentUploadOperationsCount < 32/g' {} +
           find TMessagesProj/ -name "FileLoadOperation.java" -exec sed -i 's/currentDownloadOperationsCount[[:space:]]*<[[:space:]]*[0-9]*/currentDownloadOperationsCount < 32/g' {} +
 
-          # 5. 物理切除 Google 服务 (屏蔽所有 gms 依赖防止编译冲突)
+          # 4. 暴力切除所有监控组件 (Google/Firebase/Sentry)
           find . -name "build.gradle" -exec sed -i '/google-services/d' {} +
           find . -name "build.gradle" -exec sed -i '/com.google.gms/d' {} +
+          find . -name "build.gradle" -exec sed -i '/io.sentry/d' {} +
+          find . -name "build.gradle" -exec sed -i '/firebase/d' {} +
 
-          # 6. 精准锁定包名
+          # 5. 包名与名称重构
           find . -name "build.gradle" -exec sed -i "s/applicationId \".*\"/applicationId \"$TARGET_ID\"/g" {} +
-
-          # 7. 应用名称更名 (Nekogram -> Mommy)
           find . -name "strings.xml" -exec sed -i 's/Nekogram/Mommy/g' {} +
-          
-          echo "✅ 源码重构完成，所有补丁已就位。"
+
+          echo "✅ 补丁注入完成，频道已更新，监控已屏蔽。"
 
       - name: ☕ 设置 JDK 21
         uses: actions/setup-java@v4
@@ -78,24 +77,19 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      - name: 🏗️ 执行 Gradle 编译 (极限内存单线程)
+      - name: 🏗️ 执行 Gradle 编译 (利用缓存加速)
         run: |
           chmod +x gradlew
-          # 导出 Java 选项，确保编译器本身拥有 6GB 内存
           export JAVA_OPTS="-Xmx6144m"
-          
           ./gradlew assembleDebug \
             --no-daemon \
             --no-parallel \
-            -x lint \
-            -x test \
-            -x extractDebugAnnotations \
-            -x lintVitalRelease \
+            -x lint -x test -x extractDebugAnnotations \
             -PapplicationId="org.mommy.messenger"
 
-      - name: 📦 导出成品 APK
-        if: success()
+      - name: 📦 导出最终成品
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Mommy-Turbo-V13-Final
+          name: Mommy-Turbo-V16-Final
           path: TMessagesProj_App/build/outputs/apk/debug/*.apk
