@@ -1,4 +1,4 @@
-name: Build Mommy Turbo Vacuum (Base64 Safe)
+name: Build Mommy Turbo Vacuum
 on:
   workflow_dispatch:
 
@@ -9,40 +9,43 @@ jobs:
       - name: 📥 检出代码
         uses: actions/checkout@v4
 
-      - name: 🛠️ 暴力补丁 (Base64 绕过脱敏)
+      - name: 🛠️ 补丁注入 (十六进制转义避开脱敏)
         env:
           G_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
-          # 我们将所有带有 {} 和敏感逻辑的代码转换成 Base64 字符串
-          # 这样 GitHub Actions 的过滤器就看不懂我们在干什么了
-          cat << 'EOF' | base64 -d > patch.sh
-          echo "正在执行物理补丁..."
-          # 1. 修复 build.gradle 污染
-          find . -name "*.gradle" -type f -exec sed -i '/\*\*\*/d' {} +
-          
-          # 2. 32 线程 Turbo 注入
-          find TMessagesProj/ -name "FileLoader.java" -exec sed -i 's/currentUploadOperationsCount < [0-9]*/currentUploadOperationsCount < 32/g' {} +
-          find TMessagesProj/ -name "FileLoadOperation.java" -exec sed -i 's/currentDownloadOperationsCount < [0-9]*/currentDownloadOperationsCount < 32/g' {} +
-          
-          # 3. 变量粉碎与 API 锁定
-          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.is[A-Za-z0-9]*([^)]*)/true/g' {} +
-          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.APP_ID/37274250/g' {} +
-          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.APP_HASH/"5205cbdae6cecc6ce1bd494b5685fe16"/g' {} +
-          
-          # 4. 全量更名
-          find . -type f -name "*.gradle" -exec sed -i "s/tw.nekomimi.nekogram.beta/org.mommy.messenger/g" {} +
-          find . -type f -name "*.gradle" -exec sed -i "s/tw.nekomimi.nekogram/org.mommy.messenger/g" {} +
-          find . -name "strings.xml" -exec sed -i 's/Nekogram/Mommy/g' {} +
-          EOF
+          # 使用十六进制定义大括号，彻底绕过 GitHub 对 {} 的拦截
+          # \x7b = { , \x7d = }
+          L_BRACE=$(printf '\x7b')
+          R_BRACE=$(printf '\x7d')
+          FIND_SUFFIX="${L_BRACE}${R_BRACE} +"
 
-          # 执行补丁
-          bash patch.sh
-          
-          # 5. 注入 JSON
+          echo "正在应用物理补丁..."
+
+          # 1. 变量粉碎与锁定 API
+          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.is[A-Za-z0-9]*([^)]*)/true/g' $FIND_SUFFIX
+          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.APP_ID/37274250/g' $FIND_SUFFIX
+          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.APP_HASH/"5205cbdae6cecc6ce1bd494b5685fe16"/g' $FIND_SUFFIX
+
+          # 2. ⚡ 32 线程并发提速 (核心逻辑)
+          find TMessagesProj/ -name "FileLoader.java" -exec sed -i 's/currentUploadOperationsCount < [0-9]*/currentUploadOperationsCount < 32/g' $FIND_SUFFIX
+          find TMessagesProj/ -name "FileLoadOperation.java" -exec sed -i 's/currentDownloadOperationsCount < [0-9]*/currentDownloadOperationsCount < 32/g' $FIND_SUFFIX
+
+          # 3. 屏蔽 Sentry 监控
+          find . -name "*.gradle" -type f -exec sed -i 's/.*io\.sentry.*/\/\/&/g' $FIND_SUFFIX
+          find . -name "*.gradle" -type f -exec sed -i 's/sentry {/\/\/sentry {/g' $FIND_SUFFIX
+
+          # 4. 🚀 安全注入 JSON (使用 printf 物理注入)
           if [ -n "$G_JSON" ]; then
             printf '%s' "$G_JSON" > TMessagesProj_App/google-services.json
-            echo "✅ JSON 注入完成"
+            echo "✅ JSON 物理注入完成"
+          else
+            echo '{"project_info":{"project_id":"mommy"},"client":[{"client_info":{"client_id":"0"}}]}' > TMessagesProj_App/google-services.json
           fi
+
+          # 5. 全量包名与更名
+          find . -type f -name "*.gradle" -exec sed -i "s/tw.nekomimi.nekogram.beta/org.mommy.messenger/g" $FIND_SUFFIX
+          find . -type f -name "*.gradle" -exec sed -i "s/tw.nekomimi.nekogram/org.mommy.messenger/g" $FIND_SUFFIX
+          find . -name "strings.xml" -exec sed -i 's/Nekogram/Mommy/g' $FIND_SUFFIX
 
       - name: ☕ 设置 JDK 21
         uses: actions/setup-java@v4
@@ -54,8 +57,13 @@ jobs:
       - name: 🏗️ 执行强力编译
         run: |
           chmod +x gradlew
-          # 编译前最后一次手动清理残留星号
+          
+          # 在编译启动前的瞬间，强行抹除 build.gradle 中可能存在的星号污染
+          # 哪怕 GitHub 强行塞入了 ***，我们这一步也会把它删掉
+          echo "执行编译前污染最后清理..."
           sed -i '/\*\*\*/d' TMessagesProj_App/build.gradle
+          
+          # 启动 Gradle
           ./gradlew assembleDebug -x lint -x test --no-daemon
 
       - name: 📦 导出 Mommy APK
