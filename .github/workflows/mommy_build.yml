@@ -9,18 +9,19 @@ jobs:
       - name: 📥 检出代码
         uses: actions/checkout@v4
 
-      - name: 🛠️ 源码物理重构 (全量变量注入)
+      - name: 🛠️ 源码物理重构 (属性补全版)
         run: |
-          echo "🚀 开始补全所有可能的变量..."
+          echo "🚀 开始补全所有变量，锁定 org.mommy.messenger ..."
 
           # 1. 变量定义
           A="org"; B="mommy"; C="messenger"
           TARGET_ID="${A}.${B}.${C}"
 
-          # 2. 【核心修复】追加所有可能缺失的变量到文件末尾
-          # 同时补齐 APP_... 和 TG_APP_... 两种格式
+          # 2. 【核心修复】向所有 Gradle 脚本追加全量自定义属性
+          # 包含它报错要求的 APP_PACKAGE 以及相关的 TG_ 前缀变体
           cat <<EOF >> TMessagesProj/build.gradle
-
+          ext.APP_PACKAGE = '$TARGET_ID'
+          ext.TG_APP_PACKAGE = '$TARGET_ID'
           ext.APP_ID = 37274250
           ext.APP_HASH = '5205cbdae6cecc6ce1bd494b5685fe16'
           ext.APP_VERSION_CODE = 1000
@@ -32,7 +33,8 @@ jobs:
           EOF
 
           cat <<EOF >> TMessagesProj_App/build.gradle
-
+          ext.APP_PACKAGE = '$TARGET_ID'
+          ext.TG_APP_PACKAGE = '$TARGET_ID'
           ext.APP_VERSION_CODE = 1000
           ext.APP_VERSION_NAME = '1.0.0'
           ext.TG_APP_VERSION_CODE = 1000
@@ -43,7 +45,7 @@ jobs:
           sed -i '/com.google.gms.google-services/d' TMessagesProj_App/build.gradle
           sed -i '/google-services/d' TMessagesProj_App/build.gradle
 
-          # 4. 精准锁定包名
+          # 4. 精准锁定包名 (双重锁定)
           find . -name "build.gradle" -exec sed -i "s/applicationId \".*\"/applicationId \"$TARGET_ID\"/g" {} +
           find . -name "build.gradle" -exec sed -i "s/applicationIdSuffix .*/applicationIdSuffix \"\"/g" {} +
           find . -name "build.gradle" -exec sed -i 's/\.beta//g' {} +
@@ -59,7 +61,7 @@ jobs:
           # 7. 应用更名
           find . -name "strings.xml" -exec sed -i 's/Nekogram/Mommy/g' {} +
 
-          echo "✅ 全量变量补全完成。"
+          echo "✅ 全量属性注入完成。"
 
       - name: ☕ 设置 JDK 21 (配置大内存)
         uses: actions/setup-java@v4
@@ -71,19 +73,16 @@ jobs:
       - name: 🏗️ 执行 Gradle 编译
         run: |
           chmod +x gradlew
-          
-          # 强制内存
           echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m" > gradle.properties
           
-          # 执行编译，命令行也补上 TG_ 前缀参数
           ./gradlew assembleDebug \
+            -PAPP_PACKAGE="org.mommy.messenger" \
+            -PTG_APP_PACKAGE="org.mommy.messenger" \
             -PAPP_VERSION_CODE=1000 \
             -PAPP_VERSION_NAME="1.0.0" \
             -PTG_APP_VERSION_CODE=1000 \
             -PTG_APP_VERSION_NAME="1.0.0" \
-            -x lint \
-            -x test \
-            -x extractDebugAnnotations \
+            -x lint -x test -x extractDebugAnnotations \
             -PapplicationId="org.mommy.messenger" \
             --no-daemon
 
@@ -91,5 +90,5 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Mommy-Turbo-Final-V7
+          name: Mommy-Turbo-Final-V8
           path: TMessagesProj_App/build/outputs/apk/debug/*.apk
