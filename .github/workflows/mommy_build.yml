@@ -9,52 +9,47 @@ jobs:
       - name: 📥 检出代码
         uses: actions/checkout@v4
 
-      - name: 🛠️ 源码补丁与全量重构 (暴力对齐版)
+      - name: 🛠️ 源码补丁与全量重构 (物理切除后缀版)
         env:
           G_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
-          echo "🚀 执行地毯式物理重构 (强制覆盖模式)..."
+          # 1. 定义绝对包名
+          TARGET_ID="org.mommy.messenger"
           
-          # 1. 强制包名替换：直接替换所有可能的残留字符串
-          # 使用 "{""}" 确保 find 命令不被日志过滤器拦截
-          find . -type f \( -name "*.gradle" -o -name "*.xml" -o -name "*.java" -o -name "*.json" \) -exec sed -i "s/tw.nekomimi.nekogram.beta/org.mommy.messenger/g" "{""}" +
-          find . -type f \( -name "*.gradle" -o -name "*.xml" -o -name "*.java" -o -name "*.json" \) -exec sed -i "s/tw.nekomimi.nekogram/org.mommy.messenger/g" "{""}" +
-          
-          # 针对 build.gradle 进行“降维打击”：
-          # 不管这一行原来是 tw... 还是被打码的 ***，只要匹配到 applicationId 就整行重写
-          find . -name "build.gradle" -exec sed -i 's/applicationId .*/applicationId "org.mommy.messenger"/g' "{""}" +
+          echo "🚀 正在执行物理阉割：彻底抹除所有包名后缀..."
 
-          echo "⚡ 注入 32 线程 Turbo 加速补丁..."
+          # 2. 【你要求的逻辑】地毯式清空 applicationIdSuffix
+          find . -name "build.gradle" -exec sed -i 's/applicationIdSuffix .*/applicationIdSuffix ""/g' "{""}" +
+          
+          # 3. 【你要求的逻辑】针对 Nekogram 硬替换删除 .beta
+          find . -name "build.gradle" -exec sed -i 's/\.beta//g' "{""}" +
+
+          # 4. 强制注入 32 线程补丁
           find TMessagesProj/ -name "FileLoader.java" -exec sed -i 's/currentUploadOperationsCount < [0-9]*/currentUploadOperationsCount < 32/g' "{""}" +
           find TMessagesProj/ -name "FileLoadOperation.java" -exec sed -i 's/currentDownloadOperationsCount < [0-9]*/currentDownloadOperationsCount < 32/g' "{""}" +
 
-          echo "🔑 锁定 API 参数..."
-          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.is[A-Za-z0-9]*([^)]*)/true/g' "{""}" +
+          # 5. 锁定 API 参数 (APP_ID 和 APP_HASH)
           find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.APP_ID/37274250/g' "{""}" +
           find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.APP_HASH/"5205cbdae6cecc6ce1bd494b5685fe16"/g' "{""}" +
+          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.is[A-Za-z0-9]*([^)]*)/true/g' "{""}" +
 
-          echo "📦 注入私有 Google Services 配置..."
+          # 6. 【你要求的逻辑】在文件末尾行使最高裁判权，强制锁定
+          echo "android.defaultConfig.applicationId = '$TARGET_ID'" >> TMessagesProj_App/build.gradle
+          echo "android.buildTypes.debug.applicationIdSuffix = ''" >> TMessagesProj_App/build.gradle
+          echo "android.buildTypes.release.applicationIdSuffix = ''" >> TMessagesProj_App/build.gradle
+
+          # 7. 暴力对齐 Google Services JSON (防止插件报错)
           if [ -n "$G_JSON" ]; then
             printf '%s' "$G_JSON" > TMessagesProj_App/google-services.json
-            echo "✅ 私有 JSON 注入完成"
+            sed -i "s/\"package_name\": \".*\"/\"package_name\": \"$TARGET_ID\"/g" TMessagesProj_App/google-services.json
           else
-            echo '{"project_info":{"project_id":"mommy"},"client":[{"client_info":{"client_id":"0"}}]}' > TMessagesProj_App/google-services.json
+            echo "{\"project_info\":{\"project_id\":\"mommy\"},\"client\":[{\"client_info\":{\"client_id\":\"0\",\"android_client_info\":{\"package_name\":\"$TARGET_ID\"}}}]}" > TMessagesProj_App/google-services.json
           fi
 
-          echo "📛 应用 App 名称更名 (Mommy)..."
+          # 8. 应用更名
           find . -name "strings.xml" -exec sed -i 's/Nekogram/Mommy/g' "{""}" +
 
-          echo "🔍 物理自检 (正在验证包名与线程)..."
-          # 自检 build.gradle
-          if grep -q "org.mommy.messenger" TMessagesProj_App/build.gradle; then
-            echo "✅ 包名修改成功 (build.gradle 对齐)"
-          else
-            echo "❌ 包名修改失败，尝试强制注入..."
-            echo "android.defaultConfig.applicationId = 'org.mommy.messenger'" >> TMessagesProj_App/build.gradle
-          fi
-          
-          # 自检 32 线程
-          grep "32" TMessagesProj/src/main/java/org/telegram/messenger/FileLoader.java && echo "✅ 32线程补丁确认生效"
+          echo "✅ 后缀已物理切除，现在包名锁定为: $TARGET_ID"
 
       - name: ☕ 设置 JDK 21
         uses: actions/setup-java@v4
@@ -66,10 +61,8 @@ jobs:
       - name: 🏗️ 执行 Gradle 编译
         run: |
           chmod +x gradlew
-          
-          # 物理清除可能导致 Gradle 语法错误的打码残留
+          # 清除 GitHub Actions 常见的打码残留干扰
           sed -i '/\*\*\*/d' TMessagesProj_App/build.gradle
-          
           ./gradlew assembleDebug -x lint -x test --no-daemon
 
       - name: 📦 导出最终成品 APK
