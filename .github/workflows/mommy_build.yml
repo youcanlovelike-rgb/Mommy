@@ -8,31 +8,35 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 🛠️ 终极手术：参数强制注入模式
+      - name: 🛠️ 深度重构：物理抹除包名后缀逻辑
         run: |
-          # 1. 注入你的 API
+          # 1. API 注入
           find TMessagesProj/ -name "BuildVars.java" -exec sed -i 's/public static int APP_ID = .*/public static int APP_ID = 37274250;/g' {} +
           find TMessagesProj/ -name "BuildVars.java" -exec sed -i 's/public static String APP_HASH = .*/public static String APP_HASH = "5205cbdae6cecc6ce1bd494b5685fe16";/g' {} +
-          
-          # 2. 全局改名：将所有 Nekogram 文本替换为 Mommy
-          grep -rl "Nekogram" . | xargs sed -i 's/Nekogram/Mommy/g' || true
-          
-          # 3. 内存与性能优化
-          echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8" >> gradle.properties
-          echo "android.extractNativeLibs=true" >> gradle.properties
 
-          # 4. 【关键】全量强制替换包名字符串
-          # 这一步把代码里所有可能的旧包名全部换成新的，不留死角
-          find . -type f \( -name "*.gradle" -o -name "*.xml" -o -name "*.java" \) -exec sed -i 's/tw.nekomimi.nekogram/org.mommy.messenger/g' {} +
+          # 2. ⚡ 32 线程 Turbo 补丁
+          find TMessagesProj/ -name "FileLoader.java" -exec sed -i 's/currentUploadOperationsCount < [0-9]/currentUploadOperationsCount < 32/g' {} +
+          find TMessagesProj/ -name "FileLoadOperation.java" -exec sed -i 's/currentDownloadOperationsCount < [0-9]/currentDownloadOperationsCount < 32/g' {} +
+          
+          # 3. 【深度手术】直接在 build.gradle 里屏蔽 applicationIdSuffix
+          # 我们不再是删除它，而是直接把整段 productFlavors 逻辑弱化
+          find . -name "build.gradle" -type f -exec sed -i 's/applicationIdSuffix ".beta"//g' {} +
+          find . -name "build.gradle" -type f -exec sed -i 's/applicationIdSuffix ""//g' {} +
+
+          # 4. 【深度对齐】强制修改 Google Services 插件的判断逻辑
+          # 既然它报找不到包名，我们就把 JSON 里的内容强制覆盖到编译路径
+          grep -rl "tw.nekomimi.nekogram" . | xargs sed -i 's/tw.nekomimi.nekogram/org.mommy.messenger/g' || true
+          
+          # 5. 全量地毯式替换，不留死角
+          find . -type f \( -name "*.gradle" -o -name "*.xml" -o -name "*.java" \) -exec sed -i 's/tw.nekomimi.nekogram.beta/org.mommy.messenger/g' {} +
           find . -type f \( -name "*.gradle" -o -name "*.xml" -o -name "*.java" \) -exec sed -i 's/org.nekogram.messenger/org.mommy.messenger/g' {} +
+          find . -name "strings.xml" -exec sed -i 's/Nekogram/Mommy/g' {} +
 
-          # 5. 【补丁】删除可能导致冲突的 Sentry (刚才报错里提到的 Warning 源)
-          # 既然我们不需要监控，直接把这一段干掉，省得出错
-          find . -name "AndroidManifest.xml" -exec sed -i '/SentryInitProvider/d' {} +
-          find . -name "AndroidManifest.xml" -exec sed -i '/SentryPerformanceProvider/d' {} +
-
-          # 6. 注入私密 JSON
+          # 6. 注入 Google Services JSON (放在 App 目录下)
           echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > TMessagesProj_App/google-services.json
+
+          # 7. 内存补丁
+          echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8" >> gradle.properties
 
       - name: set up JDK 17
         uses: actions/setup-java@v4
@@ -41,15 +45,16 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      - name: 🏗️ 强制参数编译
+      - name: 🏗️ 强力覆盖模式编译
         run: |
           chmod +x gradlew
-          # 使用 -P 强制覆盖所有模块的 applicationId
-          ./gradlew assembleDebug --no-daemon \
+          # 使用 clean 确保不留任何上次失败的缓存
+          ./gradlew clean assembleDebug --no-daemon \
             -PapplicationId=org.mommy.messenger \
-            -PMS_APP_ID=org.mommy.messenger
+            -Pandroid.inject.bundle.id=org.mommy.messenger
 
       - name: 📦 导出 Mommy 安装包
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Mommy-Turbo-APK
