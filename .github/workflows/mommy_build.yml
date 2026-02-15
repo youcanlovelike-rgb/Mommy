@@ -20,18 +20,14 @@ jobs:
           find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.APP_ID/37274250/g' {} +
           find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.APP_HASH/"5205cbdae6cecc6ce1bd494b5685fe16"/g' {} +
 
-          # 2. 依赖与配置清洗：移除 Sentry 和 Firebase 的所有痕迹 (核心修复)
-          # 物理删除所有包含 sentry, firebase-analytics 的行
-          find . -name "*.gradle" -type f -exec sed -i '/io.sentry/d' {} +
-          find . -name "*.gradle" -type f -exec sed -i '/firebase-analytics/d' {} +
-          find . -name "*.gradle" -type f -exec sed -i '/play-services-measurement/d' {} +
-          # 暴力注销 sentry { ... } 配置块 (解决本次报错的关键)
-          find . -name "*.gradle" -type f -exec sed -i '/sentry {/,/}/d' {} +
-          # 移除 sentry 插件引入
-          find . -name "*.gradle" -type f -exec sed -i '/apply plugin:.*sentry/d' {} +
-          find . -name "*.gradle" -type f -exec sed -i '/id.*io.sentry/d' {} +
+          # 2. 依赖清洗：将相关行注释掉，确保不破坏语法 (不再暴力删除整个块)
+          find . -name "*.gradle" -type f -exec sed -i 's/.*io\.sentry.*/\/\/&/g' {} +
+          find . -name "*.gradle" -type f -exec sed -i 's/.*firebase-analytics.*/\/\/&/g' {} +
+          find . -name "*.gradle" -type f -exec sed -i 's/.*play-services-measurement.*/\/\/&/g' {} +
+          # 针对 sentry { ... } 块，改为用 // 注释掉包含 sentry 的行
+          find . -name "*.gradle" -type f -exec sed -i 's/sentry {/\/\/sentry {/g' {} +
 
-          # 3. 网络封杀：将残留的监控域名重定向到本地
+          # 3. 网络封杀：域名重定向
           find . -type f -name "*.java" -exec sed -i 's/https:\/\/sentry\.io/http:\/\/127.0.0.1/g' {} +
           find . -type f -name "*.java" -exec sed -i 's/https:\/\/app-measurement\.com/http:\/\/127.0.0.1/g' {} +
 
@@ -47,8 +43,10 @@ jobs:
           find . -name "strings.xml" -type f -exec sed -i 's/Nekogram/Mommy/g' {} +
           find . -name "strings.xml" -type f -exec sed -i 's/Neko/Mommy/g' {} +
 
-          # 6. 注入并清洗 Google Services JSON
-          echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > TMessagesProj_App/google-services.json
+          # 6. 安全注入 Google Services JSON
+          cat <<EOF > TMessagesProj_App/google-services.json
+          ${{ secrets.GOOGLE_SERVICES_JSON }}
+          EOF
           sed -i 's/"ads_id": "[^"]*"/"ads_id": ""/g' TMessagesProj_App/google-services.json
           sed -i 's/"tracking_id": "[^"]*"/"tracking_id": ""/g' TMessagesProj_App/google-services.json
 
