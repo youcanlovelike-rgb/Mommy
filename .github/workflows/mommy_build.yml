@@ -8,7 +8,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 🛠️ 极致物理脱钩：粉碎所有监控与统计
+      - name: 🛠️ 极致物理脱钩：粉碎所有监控与配置
         run: |
           # 1. 变量粉碎：切断所有 Extra 的生命线
           find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.is[A-Za-z0-9]*([^)]*)/true/g' {} +
@@ -20,16 +20,22 @@ jobs:
           find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.APP_ID/37274250/g' {} +
           find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.APP_HASH/"5205cbdae6cecc6ce1bd494b5685fe16"/g' {} +
 
-          # 2. 依赖清洗：从构建脚本中移除统计 SDK (Sentry/Firebase Analytics)
+          # 2. 依赖与配置清洗：移除 Sentry 和 Firebase 的所有痕迹 (核心修复)
+          # 物理删除所有包含 sentry, firebase-analytics 的行
           find . -name "*.gradle" -type f -exec sed -i '/io.sentry/d' {} +
-          find . -name "*.gradle" -type f -exec sed -i '/com.google.firebase:firebase-analytics/d' {} +
-          find . -name "*.gradle" -type f -exec sed -i '/com.google.android.gms:play-services-measurement/d' {} +
+          find . -name "*.gradle" -type f -exec sed -i '/firebase-analytics/d' {} +
+          find . -name "*.gradle" -type f -exec sed -i '/play-services-measurement/d' {} +
+          # 暴力注销 sentry { ... } 配置块 (解决本次报错的关键)
+          find . -name "*.gradle" -type f -exec sed -i '/sentry {/,/}/d' {} +
+          # 移除 sentry 插件引入
+          find . -name "*.gradle" -type f -exec sed -i '/apply plugin:.*sentry/d' {} +
+          find . -name "*.gradle" -type f -exec sed -i '/id.*io.sentry/d' {} +
 
           # 3. 网络封杀：将残留的监控域名重定向到本地
           find . -type f -name "*.java" -exec sed -i 's/https:\/\/sentry\.io/http:\/\/127.0.0.1/g' {} +
           find . -type f -name "*.java" -exec sed -i 's/https:\/\/app-measurement\.com/http:\/\/127.0.0.1/g' {} +
 
-          # 4. ⚡ 32 线程并发提速 (核心 Turbo)
+          # 4. ⚡ 32 线程并发提速
           find TMessagesProj/ -name "FileLoader.java" -exec sed -i 's/currentUploadOperationsCount < [0-9]*/currentUploadOperationsCount < 32/g' {} +
           find TMessagesProj/ -name "FileLoadOperation.java" -exec sed -i 's/currentDownloadOperationsCount < [0-9]*/currentDownloadOperationsCount < 32/g' {} +
           
@@ -43,7 +49,6 @@ jobs:
 
           # 6. 注入并清洗 Google Services JSON
           echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > TMessagesProj_App/google-services.json
-          # 抹除其中的追踪 ID
           sed -i 's/"ads_id": "[^"]*"/"ads_id": ""/g' TMessagesProj_App/google-services.json
           sed -i 's/"tracking_id": "[^"]*"/"tracking_id": ""/g' TMessagesProj_App/google-services.json
 
