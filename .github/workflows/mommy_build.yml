@@ -1,4 +1,4 @@
-name: Build Mommy Turbo Vacuum (V33 Final)
+name: Build Mommy Turbo Vacuum (V34 Final)
 on:
   workflow_dispatch:
 
@@ -15,9 +15,9 @@ jobs:
         with:
           submodules: recursive
 
-      - name: 🛠️ 源码物理重构 (7GB内存 + 32线程 + 变量补完)
+      - name: 🛠️ 源码物理重构 (精准注入 + 7GB内存)
         run: |
-          echo "🚀 正在执行全量物理改造..."
+          echo "🚀 执行 V34 精准重构手术..."
 
           TARGET_ID="org.mommy.messenger"
 
@@ -41,12 +41,12 @@ jobs:
           BETA_VERSION=false
           EOF
 
-          # 2. 🔥【核心修复】物理注入全局变量作用域 (解决 unknown property)
-          # 我们把所有变量直接钉在每个 build.gradle 的第一行
-          VAR_INJECTION="ext { TG_APP_VERSION_CODE = 1000; TG_APP_VERSION_NAME = '1.0.0'; TG_APP_ID = 37274250; TG_APP_HASH = '5205cbdae6cecc6ce1bd494b5685fe16'; TG_BETA_VERSION = false; APP_ID = 37274250; APP_HASH = '5205cbdae6cecc6ce1bd494b5685fe16'; }"
-          find . -name "build.gradle" -exec sed -i "1i $VAR_INJECTION" {} +
+          # 2. 🔥【修复重点】精准注入全局变量 (避开 plugins 块)
+          # 我们在 'android {' 这一行之前插入 ext 变量块，确保语法合法
+          VAR_BLOCK="ext { TG_APP_VERSION_CODE = 1000; TG_APP_VERSION_NAME = '1.0.0'; TG_APP_ID = 37274250; TG_APP_HASH = '5205cbdae6cecc6ce1bd494b5685fe16'; TG_BETA_VERSION = false; APP_ID = 37274250; APP_HASH = '5205cbdae6cecc6ce1bd494b5685fe16'; }"
+          find . -name "build.gradle" -exec sed -i "/android {/i $VAR_BLOCK" {} +
 
-          # 3. 补全 Extra.java 符号对齐
+          # 3. 补全 Extra.java
           mkdir -p TMessagesProj/src/main/java/tw/nekomimi/nekogram/
           cat <<EOF > TMessagesProj/src/main/java/tw/nekomimi/nekogram/Extra.java
           package tw.nekomimi.nekogram;
@@ -66,16 +66,16 @@ jobs:
           }
           EOF
 
-          # 4. 🔥【加速补丁】32 线程 Turbo 注入
+          # 4. 🔥 32 线程 Turbo 补丁
           find TMessagesProj/ -name "FileLoader.java" -exec sed -i 's/currentUploadOperationsCount[[:space:]]*<[[:space:]]*[0-9]*/currentUploadOperationsCount < 32/g' {} +
           find TMessagesProj/ -name "FileLoadOperation.java" -exec sed -i 's/currentDownloadOperationsCount[[:space:]]*<[[:space:]]*[0-9]*/currentDownloadOperationsCount < 32/g' {} +
 
-          # 5. 开启 buildConfig 并清理 Google 残留
+          # 5. 清理插件与开启 buildConfig
           find . -name "build.gradle" -exec sed -i '/android {/a \    buildFeatures { buildConfig = true }' {} +
           find . -name "build.gradle" -exec sed -i '/google-services/d' {} +
           find . -name "build.gradle" -exec sed -i '/com.google.gms/d' {} +
           
-          # 6. 包名、命名空间、应用名称物理替换
+          # 6. 包名、命名空间同步
           find . -name "build.gradle" -exec sed -i "s/applicationId \".*\"/applicationId \"$TARGET_ID\"/g" {} +
           find . -name "build.gradle" -exec sed -i "s/namespace \".*\"/namespace \"$TARGET_ID\"/g" {} +
           find . -name "strings.xml" -exec sed -i 's/Nekogram/Mommy/g' {} +
@@ -87,12 +87,12 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
-      - name: 🐘 设置 Gradle (自动处理网络与版本)
+      - name: 🐘 设置 Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.3.1'
 
-      - name: 🏗️ 执行 Gradle 编译 (7GB 满载 + 任务隔离模式)
+      - name: 🏗️ 执行 Gradle 编译 (7GB + 32线程)
         run: |
           chmod +x gradlew
           export JAVA_OPTS="-Xmx7168m"
@@ -105,10 +105,10 @@ jobs:
             -x lint -x test -x extractDebugAnnotations \
             -PabiFilters="arm64-v8a"
 
-      - name: 📦 导出最终 Mommy APK
+      - name: 📦 导出最终成品
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Mommy-Turbo-V33-Performance
+          name: Mommy-Turbo-V34-Final
           path: TMessagesProj_App/build/outputs/apk/debug/*.apk
 
