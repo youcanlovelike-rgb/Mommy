@@ -9,16 +9,20 @@ jobs:
       - name: 📥 检出代码
         uses: actions/checkout@v4
 
-      - name: 🛠️ 源码补丁与全量重构 (终极隔离版)
+      - name: 🛠️ 源码补丁与全量重构 (暴力对齐版)
         env:
           G_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
-          echo "🚀 执行地毯式物理重构 (引号隔离法防止脱敏破坏)..."
+          echo "🚀 执行地毯式物理重构 (强制覆盖模式)..."
           
-          # 1. 全量包名替换 (解决 Google Services 匹配问题)
-          # 使用 "{""}" 骗过 GitHub 过滤器，确保 find 指令能执行
+          # 1. 强制包名替换：直接替换所有可能的残留字符串
+          # 使用 "{""}" 确保 find 命令不被日志过滤器拦截
           find . -type f \( -name "*.gradle" -o -name "*.xml" -o -name "*.java" -o -name "*.json" \) -exec sed -i "s/tw.nekomimi.nekogram.beta/org.mommy.messenger/g" "{""}" +
           find . -type f \( -name "*.gradle" -o -name "*.xml" -o -name "*.java" -o -name "*.json" \) -exec sed -i "s/tw.nekomimi.nekogram/org.mommy.messenger/g" "{""}" +
+          
+          # 针对 build.gradle 进行“降维打击”：
+          # 不管这一行原来是 tw... 还是被打码的 ***，只要匹配到 applicationId 就整行重写
+          find . -name "build.gradle" -exec sed -i 's/applicationId .*/applicationId "org.mommy.messenger"/g' "{""}" +
 
           echo "⚡ 注入 32 线程 Turbo 加速补丁..."
           find TMessagesProj/ -name "FileLoader.java" -exec sed -i 's/currentUploadOperationsCount < [0-9]*/currentUploadOperationsCount < 32/g' "{""}" +
@@ -40,9 +44,17 @@ jobs:
           echo "📛 应用 App 名称更名 (Mommy)..."
           find . -name "strings.xml" -exec sed -i 's/Nekogram/Mommy/g' "{""}" +
 
-          echo "🔍 正在进行物理自检 (确认补丁状态)..."
-          grep "org.mommy.messenger" TMessagesProj_App/build.gradle && echo "✅ 包名修改成功" || echo "❌ 包名修改失败"
-          grep "32" TMessagesProj/src/main/java/org/telegram/messenger/FileLoader.java && echo "✅ 32线程补丁成功" || echo "❌ 补丁未命中"
+          echo "🔍 物理自检 (正在验证包名与线程)..."
+          # 自检 build.gradle
+          if grep -q "org.mommy.messenger" TMessagesProj_App/build.gradle; then
+            echo "✅ 包名修改成功 (build.gradle 对齐)"
+          else
+            echo "❌ 包名修改失败，尝试强制注入..."
+            echo "android.defaultConfig.applicationId = 'org.mommy.messenger'" >> TMessagesProj_App/build.gradle
+          fi
+          
+          # 自检 32 线程
+          grep "32" TMessagesProj/src/main/java/org/telegram/messenger/FileLoader.java && echo "✅ 32线程补丁确认生效"
 
       - name: ☕ 设置 JDK 21
         uses: actions/setup-java@v4
@@ -51,14 +63,13 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      - name: 🏗️ 执行 Gradle 强效编译
+      - name: 🏗️ 执行 Gradle 编译
         run: |
           chmod +x gradlew
           
-          # 物理清除可能导致 Gradle 报错的星号残留行
+          # 物理清除可能导致 Gradle 语法错误的打码残留
           sed -i '/\*\*\*/d' TMessagesProj_App/build.gradle
           
-          # 执行编译
           ./gradlew assembleDebug -x lint -x test --no-daemon
 
       - name: 📦 导出最终成品 APK
