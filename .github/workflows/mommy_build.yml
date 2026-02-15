@@ -9,36 +9,40 @@ jobs:
       - name: 📥 检出代码
         uses: actions/checkout@v4
 
-      - name: 🛠️ 源码物理重构 (精准修改版)
+      - name: 🛠️ 源码物理重构 (变量补全版)
         run: |
-          echo "🚀 开始精准物理重构..."
+          echo "🚀 开始精准物理重构并修复变量丢失..."
 
           # 1. 变量定义
           A="org"; B="mommy"; C="messenger"
           TARGET_ID="${A}.${B}.${C}"
 
-          # 2. 彻底切除 Google 服务相关插件引用 (不使用 find 暴力删，改用精准定位)
+          # 2. 【核心修复】在 build.gradle 顶部强制注入缺失的全局变量
+          # 这样无论源码里怎么引用，Gradle 都能在这里找到定义
+          sed -i "1i ext.APP_ID = 37274250\next.APP_HASH = '5205cbdae6cecc6ce1bd494b5685fe16'\next.APP_VERSION_CODE = 1000\next.APP_VERSION_NAME = '1.0.0'" TMessagesProj/build.gradle
+          sed -i "1i ext.APP_VERSION_CODE = 1000\next.APP_VERSION_NAME = '1.0.0'" TMessagesProj_App/build.gradle
+
+          # 3. 彻底切除 Google 服务相关插件引用
           sed -i '/com.google.gms.google-services/d' TMessagesProj_App/build.gradle
           sed -i '/google-services/d' TMessagesProj_App/build.gradle
 
-          # 3. 精准锁定包名：直接强制修改 build.gradle 中的 applicationId 
-          # 不再使用全量替换，防止破坏第三方库的 package 引用
+          # 4. 精准锁定包名
           find . -name "build.gradle" -exec sed -i "s/applicationId \".*\"/applicationId \"$TARGET_ID\"/g" {} +
           find . -name "build.gradle" -exec sed -i "s/applicationIdSuffix .*/applicationIdSuffix \"\"/g" {} +
           find . -name "build.gradle" -exec sed -i 's/\.beta//g' {} +
 
-          # 4. 注入 32 线程 Turbo 补丁
+          # 5. 注入 32 线程 Turbo 补丁
           find TMessagesProj/ -name "FileLoader.java" -exec sed -i 's/currentUploadOperationsCount < [0-9]*/currentUploadOperationsCount < 32/g' {} +
           find TMessagesProj/ -name "FileLoadOperation.java" -exec sed -i 's/currentDownloadOperationsCount < [0-9]*/currentDownloadOperationsCount < 32/g' {} +
 
-          # 5. 锁定 API 参数
+          # 6. 锁定 Java 层 API 参数
           find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.APP_ID/37274250/g' {} +
           find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.APP_HASH/"5205cbdae6cecc6ce1bd494b5685fe16"/g' {} +
 
-          # 6. 应用更名
+          # 7. 应用更名
           find . -name "strings.xml" -exec sed -i 's/Nekogram/Mommy/g' {} +
 
-          echo "✅ 精准重构完成。"
+          echo "✅ 变量补全与重构完成。"
 
       - name: ☕ 设置 JDK 21 (配置大内存)
         uses: actions/setup-java@v4
@@ -47,16 +51,17 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      - name: 🏗️ 执行 Gradle 编译 (暴力内存注入)
+      - name: 🏗️ 执行 Gradle 编译 (带全局变量注入)
         run: |
           chmod +x gradlew
           
           # 强制设置内存上限
-          export GRADLE_OPTS="-Xmx4096m -XX:MaxMetaspaceSize=1024m"
           echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m" > gradle.properties
           
-          # 执行编译，跳过所有非必要任务
+          # 执行编译，并手动传入缺失的属性作为备选方案
           ./gradlew assembleDebug \
+            -PAPP_VERSION_CODE=1000 \
+            -PAPP_VERSION_NAME="1.0.0" \
             -x lint \
             -x test \
             -x extractDebugAnnotations \
@@ -67,5 +72,5 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Mommy-Turbo-Final-V4
+          name: Mommy-Turbo-Final-V5
           path: TMessagesProj_App/build/outputs/apk/debug/*.apk
