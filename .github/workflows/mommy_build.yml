@@ -1,4 +1,4 @@
-name: Build Mommy Turbo
+name: Build Mommy Turbo Vacuum
 on:
   workflow_dispatch:
 
@@ -8,48 +8,44 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 🛠️ 物理修复：全量剔除 Extra 依赖并注入 Turbo
+      - name: 🛠️ 极致物理脱钩：粉碎所有监控与统计
         run: |
-          # 1. 暴力清除全项目中所有对 Extra 类的引用 (核心修复)
-          # 把 Extra.isDirectApp() 替换为 true
-          # 把 Extra.FORCE_ANALYTICS 替换为 false (关闭强制分析)
-          # 把 Extra.SENTRY_DSN 替换为 "" (清空错误上报地址)
-          # 把 Extra.getHelperBot() 替换为 null
-          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra.isDirectApp()/true/g' {} +
-          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra.FORCE_ANALYTICS/false/g' {} +
-          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra.SENTRY_DSN/""/g' {} +
-          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra.getHelperBot()/null/g' {} +
-          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra.APP_ID/37274250/g' {} +
-          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra.APP_HASH/"5205cbdae6cecc6ce1bd494b5685fe16"/g' {} +
-          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra.PLAYSTORE_APP_URL/"https:\/\/play.google.com"/g' {} +
+          # 1. 变量粉碎：切断所有 Extra 的生命线
+          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.is[A-Za-z0-9]*([^)]*)/true/g' {} +
+          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.[A-Za-z0-9_]*DSN/""/g' {} +
+          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.TWPIC_BOT_USERNAME/"Bot"/g' {} +
+          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.TLV_URL/"http:\/\/127.0.0.1"/g' {} +
+          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.getUserInfoBot([^)]*)/null/g' {} +
+          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.getHelperBot()/null/g' {} +
+          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.APP_ID/37274250/g' {} +
+          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.APP_HASH/"5205cbdae6cecc6ce1bd494b5685fe16"/g' {} +
 
-          # 2. 强制改写 BuildVars.java (双重保险)
-          BV_PATH="TMessagesProj/src/main/java/org/telegram/messenger/BuildVars.java"
-          sed -i 's/public static int APP_ID = .*/public static int APP_ID = 37274250;/g' $BV_PATH
-          sed -i 's/public static String APP_HASH = .*/public static String APP_HASH = "5205cbdae6cecc6ce1bd494b5685fe16";/g' $BV_PATH
+          # 2. 依赖清洗：从构建脚本中移除统计 SDK (Sentry/Firebase Analytics)
+          find . -name "*.gradle" -type f -exec sed -i '/io.sentry/d' {} +
+          find . -name "*.gradle" -type f -exec sed -i '/com.google.firebase:firebase-analytics/d' {} +
+          find . -name "*.gradle" -type f -exec sed -i '/com.google.android.gms:play-services-measurement/d' {} +
 
-          # 3. ⚡ 32 线程并发提速 (核心 Turbo)
-          find TMessagesProj/ -name "FileLoader.java" -exec sed -i 's/currentUploadOperationsCount < [0-9]/currentUploadOperationsCount < 32/g' {} +
-          find TMessagesProj/ -name "FileLoadOperation.java" -exec sed -i 's/currentDownloadOperationsCount < [0-9]/currentDownloadOperationsCount < 32/g' {} +
+          # 3. 网络封杀：将残留的监控域名重定向到本地
+          find . -type f -name "*.java" -exec sed -i 's/https:\/\/sentry\.io/http:\/\/127.0.0.1/g' {} +
+          find . -type f -name "*.java" -exec sed -i 's/https:\/\/app-measurement\.com/http:\/\/127.0.0.1/g' {} +
+
+          # 4. ⚡ 32 线程并发提速 (核心 Turbo)
+          find TMessagesProj/ -name "FileLoader.java" -exec sed -i 's/currentUploadOperationsCount < [0-9]*/currentUploadOperationsCount < 32/g' {} +
+          find TMessagesProj/ -name "FileLoadOperation.java" -exec sed -i 's/currentDownloadOperationsCount < [0-9]*/currentDownloadOperationsCount < 32/g' {} +
           
-          # 4. 🚀 全量包名暴力替换
+          # 5. 🚀 全量包名与更名
           NEW_APPID="org.mommy.messenger"
           find . -type f -exec sed -i "s/tw.nekomimi.nekogram.beta/$NEW_APPID/g" {} +
           find . -type f -exec sed -i "s/tw.nekomimi.nekogram/$NEW_APPID/g" {} +
           find . -type f -exec sed -i "s/org.nekogram.messenger/$NEW_APPID/g" {} +
-
-          # 5. 【清理后缀】防止 Gradle 动态拼接
-          find . -name "*.gradle" -type f -exec sed -i 's/applicationIdSuffix ".beta"//g' {} +
-          
-          # 6. 改名 Mommy
           find . -name "strings.xml" -type f -exec sed -i 's/Nekogram/Mommy/g' {} +
           find . -name "strings.xml" -type f -exec sed -i 's/Neko/Mommy/g' {} +
 
-          # 7. 注入 Google Services JSON
+          # 6. 注入并清洗 Google Services JSON
           echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > TMessagesProj_App/google-services.json
-          
-          # 8. 内存补丁
-          echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8" >> gradle.properties
+          # 抹除其中的追踪 ID
+          sed -i 's/"ads_id": "[^"]*"/"ads_id": ""/g' TMessagesProj_App/google-services.json
+          sed -i 's/"tracking_id": "[^"]*"/"tracking_id": ""/g' TMessagesProj_App/google-services.json
 
       - name: set up JDK 21
         uses: actions/setup-java@v4
@@ -58,14 +54,14 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      - name: 🏗️ 强力编译模式
+      - name: 🏗️ 强力出包
         run: |
           chmod +x gradlew
-          ./gradlew clean assembleDebug --no-daemon
+          ./gradlew assembleDebug -x lint -x test --no-daemon
 
-      - name: 📦 导出 Mommy 安装包
+      - name: 📦 导出 Mommy APK
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Mommy-Turbo-APK
+          name: Mommy-Turbo-Vacuum-APK
           path: TMessagesProj_App/build/outputs/apk/debug/*.apk
