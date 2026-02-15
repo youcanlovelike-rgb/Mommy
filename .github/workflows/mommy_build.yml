@@ -1,33 +1,66 @@
+name: Build Mommy Turbo Vacuum
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 检出代码
+        uses: actions/checkout@v4
+
       - name: 🛠️ 深度清洗 + 注入推送 + 32线程 Turbo
         env:
           G_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
-          # 1. 变量粉碎：切断监控，保留基础逻辑
+          # 1. 变量粉碎：锁定 API ID 并切断监控 DSN
           find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.is[A-Za-z0-9]*([^)]*)/true/g' {} +
           find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.[A-Za-z0-9_]*DSN/""/g' {} +
           find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.TWPIC_BOT_USERNAME/"Bot"/g' {} +
           find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.getUserInfoBot([^)]*)/null/g' {} +
+          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.getHelperBot()/null/g' {} +
           find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.APP_ID/37274250/g' {} +
           find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.APP_HASH/"5205cbdae6cecc6ce1bd494b5685fe16"/g' {} +
 
-          # 2. 依赖清洗：屏蔽 Sentry
+          # 2. 依赖清洗：只屏蔽 Sentry 监控，保留 Google 服务
           find . -name "*.gradle" -type f -exec sed -i 's/.*io\.sentry.*/\/\/&/g' {} +
           find . -name "*.gradle" -type f -exec sed -i 's/sentry {/\/\/sentry {/g' {} +
 
-          # 3. 🚀 安全注入 JSON (使用 printf 避开格式破坏)
-          if [ -z "$G_JSON" ]; then
-            echo "GOOGLE_SERVICES_JSON is empty!"
-            exit 1
+          # 3. 🚀 安全注入 JSON (通过 printf 避开 GitHub 星号脱敏破坏)
+          if [ -n "$G_JSON" ]; then
+            printf '%s' "$G_JSON" > TMessagesProj_App/google-services.json
+            echo "✅ Google Services JSON 注入成功"
+          else
+            echo "⚠️ Warning: G_JSON 变量为空，推送可能失效"
+            echo '{"project_info":{"project_id":"mommy"},"client":[{"client_info":{"client_id":"0"}}]}' > TMessagesProj_App/google-services.json
           fi
-          printf '%s' "$G_JSON" > TMessagesProj_App/google-services.json
 
-          # 4. ⚡ 32 线程并发提速
+          # 4. ⚡ 32 线程并发提速 (物理 Turbo)
           find TMessagesProj/ -name "FileLoader.java" -exec sed -i 's/currentUploadOperationsCount < [0-9]*/currentUploadOperationsCount < 32/g' {} +
           find TMessagesProj/ -name "FileLoadOperation.java" -exec sed -i 's/currentDownloadOperationsCount < [0-9]*/currentDownloadOperationsCount < 32/g' {} +
 
-          # 5. 🚀 全量包名与更名
+          # 5. 🚀 全量包名与更名 (Mommy 化)
           NEW_APPID="org.mommy.messenger"
           find . -type f -exec sed -i "s/tw.nekomimi.nekogram.beta/$NEW_APPID/g" {} +
           find . -type f -exec sed -i "s/tw.nekomimi.nekogram/$NEW_APPID/g" {} +
           find . -name "strings.xml" -type f -exec sed -i 's/Nekogram/Mommy/g' {} +
           find . -name "strings.xml" -type f -exec sed -i 's/Neko/Mommy/g' {} +
+
+      - name: ☕ 设置 JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: 🏗️ 执行强力编译
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug -x lint -x test --no-daemon
+
+      - name: 📦 导出 Mommy APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mommy-Turbo-Vacuum-APK
+          path: TMessagesProj_App/build/outputs/apk/debug/*.apk
