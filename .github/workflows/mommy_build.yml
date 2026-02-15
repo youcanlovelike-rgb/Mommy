@@ -8,33 +8,41 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 🛠️ 终极重塑：提速、改名、包名物理切除
+      - name: 🛠️ 暴力推土机：全项目包名无死角覆盖
         run: |
           # 1. API 注入
           find TMessagesProj/ -name "BuildVars.java" -exec sed -i 's/public static int APP_ID = .*/public static int APP_ID = 37274250;/g' {} +
           find TMessagesProj/ -name "BuildVars.java" -exec sed -i 's/public static String APP_HASH = .*/public static String APP_HASH = "5205cbdae6cecc6ce1bd494b5685fe16";/g' {} +
 
-          # 2. ⚡ 32 线程并发提速补丁
+          # 2. ⚡ 32 线程提速 (Turbo 灵魂)
           find TMessagesProj/ -name "FileLoader.java" -exec sed -i 's/currentUploadOperationsCount < [0-9]/currentUploadOperationsCount < 32/g' {} +
           find TMessagesProj/ -name "FileLoadOperation.java" -exec sed -i 's/currentDownloadOperationsCount < [0-9]/currentDownloadOperationsCount < 32/g' {} +
           
-          # 3. 【深度改名】强制修改应用在桌面显示的名称
-          # 这一步会扫描所有 strings.xml，把所有的 Nekogram 换成 Mommy
+          # 3. 🚀 【暴力核心】全文件地毯式搜索并替换
+          # 不管是 java, xml, gradle, 只要包含旧包名，全部改掉
+          # 这样做不会因为“重复定义”报错，因为我们是原地替换
+          OLD_BETA="tw.nekomimi.nekogram.beta"
+          OLD_STABLE="tw.nekomimi.nekogram"
+          OLD_ORG="org.nekogram.messenger"
+          NEW_APPID="org.mommy.messenger"
+
+          find . -type f -exec sed -i "s/$OLD_BETA/$NEW_APPID/g" {} +
+          find . -type f -exec sed -i "s/$OLD_STABLE/$NEW_APPID/g" {} +
+          find . -type f -exec sed -i "s/$OLD_ORG/$NEW_APPID/g" {} +
+
+          # 4. 【清理后缀】防止 Gradle 动态拼接 .beta
+          find . -name "*.gradle" -type f -exec sed -i 's/applicationIdSuffix ".beta"//g' {} +
+          find . -name "*.gradle" -type f -exec sed -i 's/applicationIdSuffix ""//g' {} +
+          
+          # 5. 【改名】Neko -> Mommy
           find . -name "strings.xml" -type f -exec sed -i 's/Nekogram/Mommy/g' {} +
           find . -name "strings.xml" -type f -exec sed -i 's/Neko/Mommy/g' {} +
 
-          # 4. 【包名物理切除】锁定包名，废除后缀逻辑
-          find . -name "build.gradle" -type f -exec sed -i '/defaultConfig {/a \        applicationId "org.mommy.messenger"' {} +
-          find . -name "build.gradle" -type f -exec sed -i 's/applicationIdSuffix ".beta"//g' {} +
-          find . -name "build.gradle" -type f -exec sed -i 's/applicationIdSuffix ""//g' {} +
-          
-          # 5. 全量包名替换
-          grep -rl "tw.nekomimi.nekogram.beta" . | xargs sed -i 's/tw.nekomimi.nekogram.beta/org.mommy.messenger/g' || true
-          grep -rl "tw.nekomimi.nekogram" . | xargs sed -i 's/tw.nekomimi.nekogram/org.mommy.messenger/g' || true
-          grep -rl "org.nekogram.messenger" . | xargs sed -i 's/org.nekogram.messenger/org.mommy.messenger/g' || true
-
           # 6. 注入 Google Services JSON
           echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > TMessagesProj_App/google-services.json
+          
+          # 7. 内存调优
+          echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8" >> gradle.properties
 
       - name: set up JDK 21
         uses: actions/setup-java@v4
@@ -46,9 +54,8 @@ jobs:
       - name: 🏗️ 强力编译模式
         run: |
           chmod +x gradlew
-          ./gradlew clean assembleDebug --no-daemon \
-            -PapplicationId=org.mommy.messenger \
-            -Pandroid.inject.bundle.id=org.mommy.messenger
+          # 这里不再手动传 -PapplicationId，完全依赖上面 sed 替换后的结果
+          ./gradlew clean assembleDebug --no-daemon
 
       - name: 📦 导出 Mommy 安装包
         if: always()
