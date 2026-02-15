@@ -1,4 +1,4 @@
-      - name: 🛠️ 深度清洗并注入 Google 服务 (保留推送)
+      - name: 🛠️ 深度清洗 + 注入推送 + 32线程 Turbo
         env:
           G_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
@@ -14,16 +14,22 @@
           find . -name "*.gradle" -type f -exec sed -i 's/.*io\.sentry.*/\/\/&/g' {} +
           find . -name "*.gradle" -type f -exec sed -i 's/sentry {/\/\/sentry {/g' {} +
 
-          # 3. 🚀 关键：安全注入私有 JSON 文件
-          # 使用环境变量中转，避免直接在 run 脚本中写 ${{ secrets }} 触发星号替换
+          # 3. 🚀 安全注入私有 JSON 文件 (解决 *** 报错的关键)
           if [ -z "$G_JSON" ]; then
-            echo "错误: GOOGLE_SERVICES_JSON 这个 Secret 是空的，请检查项目设置！"
+            echo "错误: GOOGLE_SERVICES_JSON 为空！"
             exit 1
           fi
           echo "$G_JSON" > TMessagesProj_App/google-services.json
 
-          # 4. 全量包名与更名 (注意：包名 org.mommy.messenger 必须与你的 JSON 里的包名一致)
+          # 4. ⚡ 32 线程并发提速 (就在这里！)
+          # 修改上传并发限制
+          find TMessagesProj/ -name "FileLoader.java" -exec sed -i 's/currentUploadOperationsCount < [0-9]*/currentUploadOperationsCount < 32/g' {} +
+          # 修改下载并发限制
+          find TMessagesProj/ -name "FileLoadOperation.java" -exec sed -i 's/currentDownloadOperationsCount < [0-9]*/currentDownloadOperationsCount < 32/g' {} +
+
+          # 5. 🚀 全量包名与更名 (Mommy 化)
           NEW_APPID="org.mommy.messenger"
           find . -type f -exec sed -i "s/tw.nekomimi.nekogram.beta/$NEW_APPID/g" {} +
           find . -type f -exec sed -i "s/tw.nekomimi.nekogram/$NEW_APPID/g" {} +
           find . -name "strings.xml" -type f -exec sed -i 's/Nekogram/Mommy/g' {} +
+          find . -name "strings.xml" -type f -exec sed -i 's/Neko/Mommy/g' {} +
