@@ -9,35 +9,42 @@ jobs:
       - name: 📥 检出代码
         uses: actions/checkout@v4
 
-      - name: 🛠️ 源码补丁与环境配置
+      - name: 🛠️ 源码补丁与全量重构 (彻底版)
         env:
           G_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
-          echo "开始应用源码修改..."
+          # 定义防止打码失效的占位符
+          FIX='{} +'
+          NEW_APPID="org.mommy.messenger"
+          OLD_APPID="tw.nekomimi.nekogram.beta"
+          OLD_APPID_BASE="tw.nekomimi.nekogram"
 
-          # 1. 变量粉碎：直接锁定 API ID
-          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.is[A-Za-z0-9]*([^)]*)/true/g' {} +
-          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.APP_ID/37274250/g' {} +
-          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.APP_HASH/"5205cbdae6cecc6ce1bd494b5685fe16"/g' {} +
+          echo "🚀 开始地毯式搜索并修改包名..."
+          # 1. 强制修改所有文本内容 (Java, XML, Gradle, JSON)
+          # 包括 applicationId, package 声明, import 引用
+          find . -type f \( -name "*.gradle" -o -name "*.xml" -o -name "*.java" -o -name "*.json" \) -exec sed -i "s/$OLD_APPID/$NEW_APPID/g" $FIX
+          find . -type f \( -name "*.gradle" -o -name "*.xml" -o -name "*.java" -o -name "*.json" \) -exec sed -i "s/$OLD_APPID_BASE/$NEW_APPID/g" $FIX
 
-          # 2. ⚡ 32 线程并发提速 (直接修改)
-          find TMessagesProj/ -name "FileLoader.java" -exec sed -i 's/currentUploadOperationsCount < [0-9]*/currentUploadOperationsCount < 32/g' {} +
-          find TMessagesProj/ -name "FileLoadOperation.java" -exec sed -i 's/currentDownloadOperationsCount < [0-9]*/currentDownloadOperationsCount < 32/g' {} +
+          echo "⚡ 注入 32 线程物理加速补丁..."
+          find TMessagesProj/ -name "FileLoader.java" -exec sed -i 's/currentUploadOperationsCount < [0-9]*/currentUploadOperationsCount < 32/g' $FIX
+          find TMessagesProj/ -name "FileLoadOperation.java" -exec sed -i 's/currentDownloadOperationsCount < [0-9]*/currentDownloadOperationsCount < 32/g' $FIX
 
-          # 3. 注入 Google Services JSON
-          # 如果 G_JSON 包含敏感字符，GitHub 可能会在日志里显示 ***，但文件写入应当是真实的
+          echo "🔑 锁定 API ID 参数..."
+          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.is[A-Za-z0-9]*([^)]*)/true/g' $FIX
+          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.APP_ID/37274250/g' $FIX
+          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.APP_HASH/"5205cbdae6cecc6ce1bd494b5685fe16"/g' $FIX
+
+          echo "📦 注入私有 Google Services 配置..."
           if [ -n "$G_JSON" ]; then
-            echo "$G_JSON" > TMessagesProj_App/google-services.json
-            echo "✅ Google Services JSON 写入尝试完成"
+            printf '%s' "$G_JSON" > TMessagesProj_App/google-services.json
+            echo "✅ 私有 JSON 已写入"
           else
-            echo '{"project_info":{"project_id":"mommy"},"client":[{"client_info":{"client_id":"0"}}]}' > TMessagesProj_App/google-services.json
+            echo "⚠️ 未检测到 Secret，使用占位 JSON (可能导致编译失败)"
+            echo '{"project_info":{"project_id":"mommy"},"client":[{"client_info":{"client_id":"0"},"api_key":[{"current_key":"0"}]}]}' > TMessagesProj_App/google-services.json
           fi
 
-          # 4. 包名全量更名
-          NEW_APPID="org.mommy.messenger"
-          find . -type f \( -name "*.gradle" -o -name "*.xml" -o -name "*.java" \) -exec sed -i "s/tw.nekomimi.nekogram.beta/$NEW_APPID/g" {} +
-          find . -type f \( -name "*.gradle" -o -name "*.xml" -o -name "*.java" \) -exec sed -i "s/tw.nekomimi.nekogram/$NEW_APPID/g" {} +
-          find . -name "strings.xml" -exec sed -i 's/Nekogram/Mommy/g' {} +
+          echo "📛 应用 App 名称更名 (Mommy)..."
+          find . -name "strings.xml" -exec sed -i 's/Nekogram/Mommy/g' $FIX
 
       - name: ☕ 设置 JDK 21
         uses: actions/setup-java@v4
@@ -46,15 +53,20 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      - name: 🏗️ 执行 Gradle 编译
+      - name: 🏗️ 执行 Gradle 强效编译
         run: |
           chmod +x gradlew
-          # 不做任何 sed 删除，直接硬跑
+          
+          # 物理清除可能导致 Gradle 报错的星号残留行
+          # 针对 build.gradle 进行最后一道防御
+          sed -i '/\*\*\*/d' TMessagesProj_App/build.gradle
+          
+          # 执行编译，跳过 lint 和测试以提速
           ./gradlew assembleDebug -x lint -x test --no-daemon
 
-      - name: 📦 导出 Mommy APK
+      - name: 📦 导出最终成品 APK
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Mommy-Turbo-Vacuum-APK
+          name: Mommy-Turbo-Vacuum-Final
           path: TMessagesProj_App/build/outputs/apk/debug/*.apk
