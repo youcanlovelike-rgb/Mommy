@@ -9,21 +9,24 @@ jobs:
       - name: 📥 检出代码
         uses: actions/checkout@v4
 
-      - name: 🛠️ 深度清洗 + 注入推送 + 32线程 Turbo
+      - name: 🛠️ 深度清洗 + 修复污染 + 32线程 Turbo
         env:
           G_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
-          # 0. 规避 GitHub 脱敏干扰：将 find 的后缀进行变量拆解
+          # 0. 物理抹除污染：擦除所有可能被 GitHub 脱敏机制强行插入的 ***
+          # 这是解决 "Unexpected input: '***'" 报错的唯一绝招
+          find . -name "*.gradle" -type f -exec sed -i '/\*\*\*/d' {} +
+          find . -name "*.java" -type f -exec sed -i '/\*\*\*/d' {} +
+          find . -name "*.xml" -type f -exec sed -i '/\*\*\*/d' {} +
+
+          # 0.1 防干扰变量拆解
           B1="{"
           B2="}"
           TARGET="${B1}${B2} +"
 
-          # 1. 变量粉碎：锁定 API ID 并切断监控 DSN
+          # 1. 变量粉碎：锁定 API 并切断监控
           find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.is[A-Za-z0-9]*([^)]*)/true/g' $TARGET
           find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.[A-Za-z0-9_]*DSN/""/g' $TARGET
-          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.TWPIC_BOT_USERNAME/"Bot"/g' $TARGET
-          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.getUserInfoBot([^)]*)/null/g' $TARGET
-          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.getHelperBot()/null/g' $TARGET
           find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.APP_ID/37274250/g' $TARGET
           find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.APP_HASH/"5205cbdae6cecc6ce1bd494b5685fe16"/g' $TARGET
 
@@ -31,26 +34,24 @@ jobs:
           find . -name "*.gradle" -type f -exec sed -i 's/.*io\.sentry.*/\/\/&/g' $TARGET
           find . -name "*.gradle" -type f -exec sed -i 's/sentry {/\/\/sentry {/g' $TARGET
 
-          # 3. 🚀 安全注入 JSON (printf 是二进制安全的，能避开星号干扰)
+          # 3. 🚀 安全注入 JSON (使用 printf 避开脱敏引擎扫描)
           if [ -n "$G_JSON" ]; then
             printf '%s' "$G_JSON" > TMessagesProj_App/google-services.json
-            echo "✅ Google Services JSON 已成功安全注入"
+            echo "✅ Google Services JSON 物理注入完成"
           else
-            echo "⚠️ Warning: G_JSON 变量为空，正在生成空壳防止编译报错"
+            echo "⚠️ Warning: G_JSON 为空，正在生成空壳防止报错"
             echo '{"project_info":{"project_id":"mommy"},"client":[{"client_info":{"client_id":"0"}}]}' > TMessagesProj_App/google-services.json
           fi
 
-          # 4. ⚡ 32 线程并发提速 (物理 Turbo)
-          # 强制修改 FileLoader.java 中的并发计数器逻辑
+          # 4. ⚡ 32 线程并发提速 (核心 Turbo)
           find TMessagesProj/ -name "FileLoader.java" -exec sed -i 's/currentUploadOperationsCount < [0-9]*/currentUploadOperationsCount < 32/g' $TARGET
           find TMessagesProj/ -name "FileLoadOperation.java" -exec sed -i 's/currentDownloadOperationsCount < [0-9]*/currentDownloadOperationsCount < 32/g' $TARGET
 
-          # 5. 🚀 全量包名与更名 (Mommy 化)
+          # 5. 🚀 全量包名与更名
           NEW_APPID="org.mommy.messenger"
           find . -type f -exec sed -i "s/tw.nekomimi.nekogram.beta/$NEW_APPID/g" $TARGET
           find . -type f -exec sed -i "s/tw.nekomimi.nekogram/$NEW_APPID/g" $TARGET
           find . -name "strings.xml" -type f -exec sed -i 's/Nekogram/Mommy/g' $TARGET
-          find . -name "strings.xml" -type f -exec sed -i 's/Neko/Mommy/g' $TARGET
 
       - name: ☕ 设置 JDK 21
         uses: actions/setup-java@v4
