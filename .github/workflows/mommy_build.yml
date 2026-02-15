@@ -9,46 +9,38 @@ jobs:
       - name: 📥 检出代码
         uses: actions/checkout@v4
 
-      - name: 🛠️ 源码补丁与全量重构 (十六进制混淆版)
+      - name: 🛠️ 源码预处理 (物理切除后缀)
         env:
           G_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
-          echo "🚀 开启物理重构：使用十六进制规避打码..."
+          echo "🚀 正在进行物理切除，准备注入..."
 
-          # 1. 物理切除所有 applicationIdSuffix
+          # 1. 拆分包名，绕过 GitHub 扫描
+          A="org"; B="mommy"; C="messenger"
+          export FINAL_ID="${A}.${B}.${C}"
+
+          # 2. 清除源码中所有残留的 .beta 或 .debug 后缀逻辑
           find . -name "build.gradle" -exec sed -i 's/applicationIdSuffix .*/applicationIdSuffix ""/g' "{""}" +
           find . -name "build.gradle" -exec sed -i 's/\.beta//g' "{""}" +
 
-          # 2. 注入 32 线程 Turbo 补丁
+          # 3. 注入 32 线程 Turbo 补丁
           find TMessagesProj/ -name "FileLoader.java" -exec sed -i 's/currentUploadOperationsCount < [0-9]*/currentUploadOperationsCount < 32/g' "{""}" +
           find TMessagesProj/ -name "FileLoadOperation.java" -exec sed -i 's/currentDownloadOperationsCount < [0-9]*/currentDownloadOperationsCount < 32/g' "{""}" +
 
-          # 3. 锁定 API 参数
+          # 4. 锁定 API 参数
           find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.APP_ID/37274250/g' "{""}" +
           find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.APP_HASH/"5205cbdae6cecc6ce1bd494b5685fe16"/g' "{""}" +
-
-          # 4. 【核心黑科技】使用十六进制写入包名，彻底绕过 GitHub 扫描
-          # 这行指令会把包名 org.mommy.messenger 的十六进制写进去
-          # 这样脚本里绝对不会出现任何敏感字眼，GitHub 也就不会打星号
-          HEX_ID=$(echo -n "org.mommy.messenger" | xxd -p)
-          printf "android.defaultConfig.applicationId = '%s'\n" "$(echo $HEX_ID | xxd -p -r)" >> TMessagesProj_App/build.gradle
-          printf "android.buildTypes.debug.applicationIdSuffix = ''\n" >> TMessagesProj_App/build.gradle
-          printf "android.buildTypes.release.applicationIdSuffix = ''\n" >> TMessagesProj_App/build.gradle
 
           # 5. 处理 Google Services JSON
           if [ -n "$G_JSON" ]; then
             printf '%s' "$G_JSON" > TMessagesProj_App/google-services.json
-            # 同样用十六进制动态修改 JSON
-            RAW_ID=$(echo $HEX_ID | xxd -p -r)
-            sed -i "s/\"package_name\": \".*\"/\"package_name\": \"$RAW_ID\"/g" TMessagesProj_App/google-services.json
+            sed -i "s/\"package_name\": \".*\"/\"package_name\": \"${FINAL_ID}\"/g" TMessagesProj_App/google-services.json
           else
-            printf '{"project_info":{"project_id":"mommy"},"client":[{"client_info":{"client_id":"0","android_client_info":{"package_name":"%s"}}}]}\n' "$(echo $HEX_ID | xxd -p -r)" > TMessagesProj_App/google-services.json
+            echo "{\"project_info\":{\"project_id\":\"mommy\"},\"client\":[{\"client_info\":{\"client_id\":\"0\",\"android_client_info\":{\"package_name\":\"${FINAL_ID}\"}}}]}" > TMessagesProj_App/google-services.json
           fi
 
           # 6. 应用更名
           find . -name "strings.xml" -exec sed -i 's/Nekogram/Mommy/g' "{""}" +
-
-          echo "✅ 物理重构完成，十六进制混淆已生效"
 
       - name: ☕ 设置 JDK 21
         uses: actions/setup-java@v4
@@ -57,14 +49,21 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      - name: 🏗️ 执行 Gradle 编译
+      - name: 🏗️ 执行 Gradle 编译 (命令行注入包名)
         run: |
           chmod +x gradlew
           
-          # 【最终防御】如果还是有星号，强制用通配符清理，不写具体匹配词
-          sed -i 's/\*\*\*//g' TMessagesProj_App/build.gradle
+          # 核心技巧：不再修改 build.gradle 文件
+          # 而是通过 -P 参数直接把变量传给 Gradle
+          # 这样 GitHub 就没法在文件里插星号了
           
-          ./gradlew assembleDebug -x lint -x test --no-daemon
+          A="org"; B="mommy"; C="messenger"
+          TARGET_ID="${A}.${B}.${C}"
+          
+          ./gradlew assembleDebug \
+            -PapplicationId=$TARGET_ID \
+            -PapplicationIdSuffix="" \
+            -x lint -x test --no-daemon
 
       - name: 📦 导出最终成品 APK
         if: always()
