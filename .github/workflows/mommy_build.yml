@@ -9,43 +9,26 @@ jobs:
       - name: 📥 检出代码
         uses: actions/checkout@v4
 
-      - name: 🛠️ 源码物理重构 (属性补全版)
+      - name: 🛠️ 源码物理重构 (语法纠偏版)
         run: |
-          echo "🚀 开始补全所有变量，锁定 org.mommy.messenger ..."
+          echo "🚀 开始精准属性补全 (强制换行版)..."
 
           # 1. 变量定义
           A="org"; B="mommy"; C="messenger"
           TARGET_ID="${A}.${B}.${C}"
 
-          # 2. 【核心修复】向所有 Gradle 脚本追加全量自定义属性
-          # 包含它报错要求的 APP_PACKAGE 以及相关的 TG_ 前缀变体
-          cat <<EOF >> TMessagesProj/build.gradle
-          ext.APP_PACKAGE = '$TARGET_ID'
-          ext.TG_APP_PACKAGE = '$TARGET_ID'
-          ext.APP_ID = 37274250
-          ext.APP_HASH = '5205cbdae6cecc6ce1bd494b5685fe16'
-          ext.APP_VERSION_CODE = 1000
-          ext.APP_VERSION_NAME = '1.0.0'
-          ext.TG_APP_VERSION_CODE = 1000
-          ext.TG_APP_VERSION_NAME = '1.0.0'
-          ext.TG_APP_ID = 37274250
-          ext.TG_APP_HASH = '5205cbdae6cecc6ce1bd494b5685fe16'
-          EOF
+          # 2. 【核心修复】使用 printf 确保在追加前有足够的换行符
+          # 这样可以避免变量跟在原文件末尾的大括号后面
+          FIX_BLOCK="\n\nproject.ext {\n    APP_PACKAGE = '$TARGET_ID'\n    TG_APP_PACKAGE = '$TARGET_ID'\n    APP_ID = 37274250\n    APP_HASH = '5205cbdae6cecc6ce1bd494b5685fe16'\n    APP_VERSION_CODE = 1000\n    APP_VERSION_NAME = '1.0.0'\n    TG_APP_VERSION_CODE = 1000\n    TG_APP_VERSION_NAME = '1.0.0'\n    TG_APP_ID = 37274250\n    TG_APP_HASH = '5205cbdae6cecc6ce1bd494b5685fe16'\n}\n"
 
-          cat <<EOF >> TMessagesProj_App/build.gradle
-          ext.APP_PACKAGE = '$TARGET_ID'
-          ext.TG_APP_PACKAGE = '$TARGET_ID'
-          ext.APP_VERSION_CODE = 1000
-          ext.APP_VERSION_NAME = '1.0.0'
-          ext.TG_APP_VERSION_CODE = 1000
-          ext.TG_APP_VERSION_NAME = '1.0.0'
-          EOF
+          printf "$FIX_BLOCK" >> TMessagesProj/build.gradle
+          printf "$FIX_BLOCK" >> TMessagesProj_App/build.gradle
 
           # 3. 彻底切除 Google 服务
           sed -i '/com.google.gms.google-services/d' TMessagesProj_App/build.gradle
           sed -i '/google-services/d' TMessagesProj_App/build.gradle
 
-          # 4. 精准锁定包名 (双重锁定)
+          # 4. 精准锁定包名
           find . -name "build.gradle" -exec sed -i "s/applicationId \".*\"/applicationId \"$TARGET_ID\"/g" {} +
           find . -name "build.gradle" -exec sed -i "s/applicationIdSuffix .*/applicationIdSuffix \"\"/g" {} +
           find . -name "build.gradle" -exec sed -i 's/\.beta//g' {} +
@@ -61,7 +44,7 @@ jobs:
           # 7. 应用更名
           find . -name "strings.xml" -exec sed -i 's/Nekogram/Mommy/g' {} +
 
-          echo "✅ 全量属性注入完成。"
+          echo "✅ 语法纠偏完成。"
 
       - name: ☕ 设置 JDK 21 (配置大内存)
         uses: actions/setup-java@v4
@@ -75,20 +58,17 @@ jobs:
           chmod +x gradlew
           echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m" > gradle.properties
           
+          # 依然保留命令行参数作为冗余保障
           ./gradlew assembleDebug \
             -PAPP_PACKAGE="org.mommy.messenger" \
-            -PTG_APP_PACKAGE="org.mommy.messenger" \
             -PAPP_VERSION_CODE=1000 \
             -PAPP_VERSION_NAME="1.0.0" \
-            -PTG_APP_VERSION_CODE=1000 \
-            -PTG_APP_VERSION_NAME="1.0.0" \
             -x lint -x test -x extractDebugAnnotations \
-            -PapplicationId="org.mommy.messenger" \
             --no-daemon
 
       - name: 📦 导出最终成品 APK
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Mommy-Turbo-Final-V8
+          name: Mommy-Turbo-Final-V9
           path: TMessagesProj_App/build/outputs/apk/debug/*.apk
