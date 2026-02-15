@@ -1,70 +1,29 @@
-name: Build Mommy Turbo Vacuum
-on:
-  workflow_dispatch:
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: 🛠️ 极致物理脱钩：粉碎所有监控与配置
+      - name: 🛠️ 深度清洗并注入 Google 服务 (保留推送)
+        env:
+          G_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
-          # 1. 变量粉碎：切断所有 Extra 的生命线
+          # 1. 变量粉碎：切断监控，但保留推送相关的基础逻辑
           find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.is[A-Za-z0-9]*([^)]*)/true/g' {} +
           find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.[A-Za-z0-9_]*DSN/""/g' {} +
           find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.TWPIC_BOT_USERNAME/"Bot"/g' {} +
-          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.TLV_URL/"http:\/\/127.0.0.1"/g' {} +
           find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.getUserInfoBot([^)]*)/null/g' {} +
-          find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.getHelperBot()/null/g' {} +
           find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.APP_ID/37274250/g' {} +
           find TMessagesProj/ -type f -name "*.java" -exec sed -i 's/Extra\.APP_HASH/"5205cbdae6cecc6ce1bd494b5685fe16"/g' {} +
 
-          # 2. 依赖清洗：将相关行注释掉，确保不破坏语法 (不再暴力删除整个块)
+          # 2. 依赖清洗：只删除 Sentry (监控)，保留 Google Services (推送核心)
           find . -name "*.gradle" -type f -exec sed -i 's/.*io\.sentry.*/\/\/&/g' {} +
-          find . -name "*.gradle" -type f -exec sed -i 's/.*firebase-analytics.*/\/\/&/g' {} +
-          find . -name "*.gradle" -type f -exec sed -i 's/.*play-services-measurement.*/\/\/&/g' {} +
-          # 针对 sentry { ... } 块，改为用 // 注释掉包含 sentry 的行
           find . -name "*.gradle" -type f -exec sed -i 's/sentry {/\/\/sentry {/g' {} +
 
-          # 3. 网络封杀：域名重定向
-          find . -type f -name "*.java" -exec sed -i 's/https:\/\/sentry\.io/http:\/\/127.0.0.1/g' {} +
-          find . -type f -name "*.java" -exec sed -i 's/https:\/\/app-measurement\.com/http:\/\/127.0.0.1/g' {} +
+          # 3. 🚀 关键：安全注入私有 JSON 文件
+          # 使用环境变量中转，避免直接在 run 脚本中写 ${{ secrets }} 触发星号替换
+          if [ -z "$G_JSON" ]; then
+            echo "错误: GOOGLE_SERVICES_JSON 这个 Secret 是空的，请检查项目设置！"
+            exit 1
+          fi
+          echo "$G_JSON" > TMessagesProj_App/google-services.json
 
-          # 4. ⚡ 32 线程并发提速
-          find TMessagesProj/ -name "FileLoader.java" -exec sed -i 's/currentUploadOperationsCount < [0-9]*/currentUploadOperationsCount < 32/g' {} +
-          find TMessagesProj/ -name "FileLoadOperation.java" -exec sed -i 's/currentDownloadOperationsCount < [0-9]*/currentDownloadOperationsCount < 32/g' {} +
-          
-          # 5. 🚀 全量包名与更名
+          # 4. 全量包名与更名 (注意：包名 org.mommy.messenger 必须与你的 JSON 里的包名一致)
           NEW_APPID="org.mommy.messenger"
           find . -type f -exec sed -i "s/tw.nekomimi.nekogram.beta/$NEW_APPID/g" {} +
           find . -type f -exec sed -i "s/tw.nekomimi.nekogram/$NEW_APPID/g" {} +
-          find . -type f -exec sed -i "s/org.nekogram.messenger/$NEW_APPID/g" {} +
           find . -name "strings.xml" -type f -exec sed -i 's/Nekogram/Mommy/g' {} +
-          find . -name "strings.xml" -type f -exec sed -i 's/Neko/Mommy/g' {} +
-
-          # 6. 安全注入 Google Services JSON
-          cat <<EOF > TMessagesProj_App/google-services.json
-          ${{ secrets.GOOGLE_SERVICES_JSON }}
-          EOF
-          sed -i 's/"ads_id": "[^"]*"/"ads_id": ""/g' TMessagesProj_App/google-services.json
-          sed -i 's/"tracking_id": "[^"]*"/"tracking_id": ""/g' TMessagesProj_App/google-services.json
-
-      - name: set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-          cache: gradle
-
-      - name: 🏗️ 强力出包
-        run: |
-          chmod +x gradlew
-          ./gradlew assembleDebug -x lint -x test --no-daemon
-
-      - name: 📦 导出 Mommy APK
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: Mommy-Turbo-Vacuum-APK
-          path: TMessagesProj_App/build/outputs/apk/debug/*.apk
